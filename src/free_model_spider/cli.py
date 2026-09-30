@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
-from free_model_spider.core.diff import diff_models
+from free_model_spider.core.diff import DiffResult, diff_models
 from free_model_spider.core.intro import build_intro
 from free_model_spider.core.report import IndexEntry, render_report, update_readme_index
 from free_model_spider.core.snapshot import (
@@ -20,6 +20,7 @@ from free_model_spider.core.snapshot import (
 from free_model_spider.llm.client import build_llm_client
 from free_model_spider.search import build_search_provider
 from free_model_spider.sources import available_sources, create_source
+from free_model_spider.sources.base import sort_records
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 
@@ -65,13 +66,16 @@ def main(argv: list[str] | None = None) -> int:
         source = create_source(name, client)
         records = source.fetch_free_models()
         latest = find_latest_snapshot(args.data_dir, name, date)
-        yesterday = load_snapshot(latest) if latest else []
-        diff = diff_models(records, yesterday)
-        intros = {}
-        for record in diff.added:
-            intros[record.id] = build_intro(record, search, llm)
-            if llm is not None:
-                time.sleep(3)
+        intros: dict = {}
+        if latest is None:
+            # 首日基线：全部计入存量，不生成介绍（spec §6；render 对 yesterday_date=None 的重映射与此幂等）
+            diff = DiffResult(added=[], removed=[], unchanged=sort_records(records))
+        else:
+            diff = diff_models(records, load_snapshot(latest))
+            for record in diff.added:
+                intros[record.id] = build_intro(record, search, llm)
+                if llm is not None:
+                    time.sleep(3)
         spath = snapshot_path(args.data_dir, name, date)
         save_snapshot(records, spath, name, date)
         report_rel = args.reports_dir / f"{name}-{date}-免费模型清单.md"

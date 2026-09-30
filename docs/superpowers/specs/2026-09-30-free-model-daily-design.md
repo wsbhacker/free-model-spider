@@ -120,7 +120,7 @@ LLM 用量提示：OpenRouter 免费档 50 req/day，若新增数量常超预算
 每平台一份，平铺于 `reports/`：`reports/<source>-YYYY-MM-DD-免费模型清单.md`（如 `reports/openrouter-2026-09-30-免费模型清单.md`），中文，**三段式**，每段内模型按 id 字母序排序，**每个模型一律附平台页链接**（如 `https://openrouter.ai/<id>`）：
 
 ```
-# OpenRouter 免费模型日报 2026-09-30
+# OpenRouter 免费模型清单 2026-09-30
 > 免费 20 个（2026-09-29：+2 / -1）
 
 ## 🆕 新增 (2)

@@ -15,7 +15,7 @@ Markdown 日报，由 GitHub Actions 每日北京时间 08:30 自动运行并提
 ## 使用
 
 - GitHub Actions：在仓库 Settings → Secrets and variables → Actions 配置
-  `LLM_API_KEY`（必需，OpenRouter 免费 key 即可）与 `BRAVE_API_KEY`（可选）。
+  `LLM_API_KEY`（推荐，OpenRouter 免费 key 即可）与 `BRAVE_API_KEY`（可选）。
 - 本地运行：
 
   ```bash

@@ -5,6 +5,7 @@ import httpx
 import respx
 
 from free_model_spider.cli import main
+from free_model_spider.core.intro import metadata_card
 
 PAGE_DAY1 = {
     "data": [
@@ -71,6 +72,36 @@ def test_first_then_second_day(tmp_path, monkeypatch):
     readme = Path("README.md").read_text("utf-8")
     assert readme.count("| 2026-10-01 | OpenRouter |") == 1
     assert readme.count("| 2026-09-30 | OpenRouter |") == 1
+
+
+@respx.mock
+def test_first_day_skips_intro_pipeline(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    monkeypatch.chdir(repo)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("BRAVE_API_KEY", raising=False)
+
+    calls: list[str] = []
+
+    def fake_build_intro(record, search, llm):
+        calls.append(record.id)
+        return metadata_card(record)
+
+    monkeypatch.setattr("free_model_spider.cli.build_intro", fake_build_intro)
+
+    route = _mock_api(PAGE_DAY1)
+    assert main(["run", "--date", "2026-09-30", "--no-commit"]) == 0
+    assert calls == []  # 首日基线：不生成介绍
+    readme = Path("README.md").read_text("utf-8")
+    assert "| 2026-09-30 | OpenRouter | +0 | -0 |" in readme
+
+    route.side_effect = [httpx.Response(200, json=PAGE_DAY2)]
+    assert main(["run", "--date", "2026-10-01", "--no-commit"]) == 0
+    assert calls == ["b/y:free"]  # 次日：仅新增模型生成介绍
+    report2 = Path("reports/openrouter-2026-10-01-免费模型清单.md").read_text("utf-8")
+    assert "### b/y:free" in report2
 
 
 @respx.mock
