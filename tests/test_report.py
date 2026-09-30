@@ -10,6 +10,7 @@ def rec(id_: str, name: str = "", ctx: int | None = 262144) -> ModelRecord:
     return ModelRecord(
         source="openrouter", id=id_, name=name or id_, context_length=ctx,
         input_modalities=["text"], output_modalities=["text"],
+        links={"platform_page": f"https://openrouter.ai/{id_}"},
     )
 
 

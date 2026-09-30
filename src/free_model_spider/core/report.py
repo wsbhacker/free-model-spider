@@ -19,13 +19,6 @@ class IndexEntry(NamedTuple):
     path: str
 
 
-_SOURCE_PAGE_URLS = {"openrouter": "https://openrouter.ai/{id}"}
-
-
-def _page_url(record: ModelRecord) -> str:
-    return record.page_url or _SOURCE_PAGE_URLS.get(record.source, "").format(id=record.id)
-
-
 def _fmt_context(record: ModelRecord) -> str:
     return f"{record.context_length:,}" if record.context_length else "未知"
 
@@ -43,7 +36,6 @@ def _added_section(records: list[ModelRecord], intros: dict[str, IntroCard]) -> 
         return lines
     for r in records:
         card = intros.get(r.id) or IntroCard(model_id=r.id, kind="metadata", title=r.name)
-        url = _page_url(r)
         lines.append(f"### {r.id}")
         lines.append(f"- 名称：{card.title}")
         lines.append(f"- 介绍：{card.summary}")
@@ -51,8 +43,8 @@ def _added_section(records: list[ModelRecord], intros: dict[str, IntroCard]) -> 
             lines.append(f"- 要点：{'；'.join(card.highlights)}")
         if card.caveat:
             lines.append(f"- 注意：{card.caveat}")
-        links = [f"[平台页]({url})"] if url else []
-        links += [f"<{u}>" for u in card.sources if u != url]
+        links = [f"[平台页]({r.page_url})"] if r.page_url else []
+        links += [f"<{url}>" for url in card.sources if url != r.page_url]
         if links:
             lines.append(f"- 链接：{' ｜ '.join(links)}")
     return lines
@@ -64,8 +56,7 @@ def _removed_section(records: list[ModelRecord], yesterday_date: str | None) -> 
         lines.append("- 无")
         return lines
     for r in records:
-        url = _page_url(r)
-        link = f"[{r.id}]({url})" if url else r.id
+        link = f"[{r.id}]({r.page_url})" if r.page_url else r.id
         last_seen = f"（最后出现：{yesterday_date}）" if yesterday_date else ""
         lines.append(f"- {link}{last_seen}")
     return lines
@@ -78,8 +69,7 @@ def _unchanged_section(records: list[ModelRecord]) -> list[str]:
         return lines
     lines += ["| 模型 | 名称 | 上下文 | 模态 |", "|---|---|---|---|"]
     for r in records:
-        url = _page_url(r)
-        link = f"[{r.id}]({url})" if url else r.id
+        link = f"[{r.id}]({r.page_url})" if r.page_url else r.id
         lines.append(f"| {link} | {r.name} | {_fmt_context(r)} | {_fmt_modalities(r)} |")
     return lines
 
