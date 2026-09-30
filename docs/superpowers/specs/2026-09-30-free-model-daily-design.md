@@ -8,7 +8,7 @@
 
 每日定时抓取 OpenRouter 上的免费大模型列表，与前一日快照对比得出**新增**与**移除**；对每个新增模型生成中文介绍（元数据打底 + 网络搜索 + LLM 整理），以 Markdown 日报形式随 git 提交留档。
 
-**非目标（v1 不做）**：多平台接入（仅预留接口）、跨平台模型去重、GitHub Pages 看板、IM 推送、实时查询 API。
+**非目标（v1 不做）**：多平台接入（仅预留接口；接入后各平台独立追踪、跨平台不去重，见 §5）、GitHub Pages 看板、IM 推送、实时查询 API。
 
 ## 2. 需求
 
@@ -92,7 +92,8 @@ GitHub Actions（cron 30 0 * * * UTC = 北京 08:30，支持手动触发）
 
 - `Source` 接口：`fetch_free_models() -> list[ModelRecord]`，各平台实现一个类并注册到 registry；日报与快照按 source 分目录/分节。
 - `ModelRecord` 归一化字段：`source`、`id`（平台原生 id）、`name`、`context_length`、`input_modalities`、`output_modalities`、`created`（Unix 时间戳）、`description`、`links`（平台页等）、`raw`（原始条目，剔除 description 避免重复存储）。
-- 未来接新平台：实现接口 → 注册 → 日报自动多一节。跨平台去重留待真实需求出现。
+- 未来接新平台：实现接口 → 注册 → 日报自动多一节。
+- **设计决策：跨平台不去重**。各平台独立追踪、独立 diff、独立成节——同一模型若出现在多个平台，各平台分别列出，互不合并。
 
 ## 6. 快照与 diff 规则
 
