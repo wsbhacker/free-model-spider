@@ -9,7 +9,7 @@ Markdown 日报，由 GitHub Actions 每日北京时间 08:30 自动运行并提
 <!-- fms-index:start -->
 | 日期 | 平台 | 新增 | 移除 | 日报 |
 |---|---|---|---|---|
-| 2026-09-30 | OpenRouter | +19 | -0 | [链接](reports/openrouter-2026-09-30-免费模型清单.md) |
+| 2026-09-30 | OpenRouter | +0 | -0 | [链接](reports/openrouter-2026-09-30-免费模型清单.md) |
 <!-- fms-index:end -->
 
 ## 使用
