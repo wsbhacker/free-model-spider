@@ -1,0 +1,64 @@
+{
+  "data": [
+    {
+      "id": "qwen/qwen3.8-27b:free",
+      "name": "Qwen: Qwen3.8 27B (free)",
+      "created": 1786722910,
+      "context_length": 262144,
+      "description": "Qwen3.8 27B is a free variant.",
+      "hugging_face_id": null,
+      "architecture": {
+        "input_modalities": ["text", "image"],
+        "output_modalities": ["text"]
+      },
+      "pricing": {"prompt": "0", "completion": "0"}
+    },
+    {
+      "id": "stealth/space-bunny-alpha",
+      "name": "Space Bunny Alpha",
+      "created": 1790174884,
+      "context_length": 1000000,
+      "description": "Stealth model free during preview.",
+      "hugging_face_id": "some-org/space-bunny",
+      "architecture": {
+        "input_modalities": ["text"],
+        "output_modalities": ["text"]
+      },
+      "pricing": {"prompt": "0", "completion": "0"}
+    },
+    {
+      "name": "Broken Entry",
+      "created": 1790000000,
+      "context_length": 4096,
+      "description": "Malformed entry without id.",
+      "architecture": {"input_modalities": ["text"], "output_modalities": ["text"]},
+      "pricing": {"prompt": "0", "completion": "0"}
+    },
+    {
+      "id": "openai/gpt-6.1-sol-pro",
+      "name": "OpenAI: GPT-6.1 Sol Pro",
+      "created": 1790702886,
+      "context_length": 1050000,
+      "description": "Paid flagship.",
+      "hugging_face_id": null,
+      "architecture": {
+        "input_modalities": ["text", "image"],
+        "output_modalities": ["text"]
+      },
+      "pricing": {"prompt": "0.000002", "completion": "0.00001"}
+    },
+    {
+      "id": "openrouter/free",
+      "name": "OpenRouter: Free Router",
+      "created": 1780000000,
+      "context_length": 200000,
+      "description": "Meta routing model, not a real model.",
+      "hugging_face_id": null,
+      "architecture": {
+        "input_modalities": ["text"],
+        "output_modalities": ["text"]
+      },
+      "pricing": {"prompt": "0", "completion": "0"}
+    }
+  ]
+}
