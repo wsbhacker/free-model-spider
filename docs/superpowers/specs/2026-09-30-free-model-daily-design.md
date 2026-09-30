@@ -208,6 +208,6 @@ free-model-spider/
 | Brave 限速 1 req/s | 请求间隔 ≥1.1s |
 | 快照体积增长 | 仅免费模型、剔除 raw 中重复 description（实测每日约几十 KB，可接受） |
 
-## 15. 未决问题
+## 15. 其他决议
 
-- 仓库公开/私有：**不阻塞开发**（token 走 Secrets，代码零差异）。默认按公开设计（Actions 免费无限分钟、日报可分享、为未来 Pages 铺路），随时可切换。
+- **仓库设置为公开**（2026-09-30 确认）：Actions 免费无限分钟、日报可分享、为未来 GitHub Pages 铺路。token 仍只存 GitHub Secrets / 本地环境变量，不进仓库。
