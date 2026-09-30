@@ -100,3 +100,21 @@ def test_build_intro_no_llm_no_search():
     card = build_intro(REC, None, None)
     assert card.kind == "metadata"
     assert isinstance(card, IntroCard)
+
+
+def test_build_intro_highlights_null_does_not_crash():
+    llm = FakeLLM(replies=['{"summary": "ok", "highlights": null, "caveat": ""}'])
+    card = build_intro(REC, FakeSearch(), llm)
+    assert card.kind == "full"
+    assert card.highlights == []
+
+
+def test_build_intro_sources_deduped():
+    search = FakeSearch(results=[
+        SearchResult(title="T1", url="https://n.example/1", snippet="S1"),
+        SearchResult(title="T2", url="https://n.example/1", snippet="S2"),
+    ])
+    llm = FakeLLM(replies=[GOOD_JSON])
+    card = build_intro(REC, search, llm)
+    assert card.kind == "full"
+    assert card.sources == ["https://openrouter.ai/vendor/model-a:free", "https://n.example/1"]

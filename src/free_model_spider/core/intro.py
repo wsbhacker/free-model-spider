@@ -114,14 +114,15 @@ def build_intro(
         if parsed is not None:
             source_urls = [record.page_url] if record.page_url else []
             source_urls += [r.url for r in results if r.url and r.url != record.page_url]
+            source_urls = list(dict.fromkeys(source_urls))[:4]
             card = IntroCard(
                 model_id=record.id,
                 kind="full",
                 title=record.name,
                 summary=parsed["summary"],
-                highlights=[str(h) for h in parsed.get("highlights", [])][:5],
+                highlights=[str(h) for h in (parsed.get("highlights") or [])][:5],
                 caveat=str(parsed.get("caveat") or ""),
-                sources=source_urls[:4],
+                sources=source_urls,
             )
             return card
 
