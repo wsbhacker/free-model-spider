@@ -84,13 +84,13 @@ GitHub Actions（cron 30 0 * * * UTC = 北京 08:30，支持手动触发）
      ① fetch   — 各数据源拉取免费模型列表（当前仅 openrouter）
      ② diff    — 与昨日快照对比 → 新增 / 移除 / 总量
      ③ enrich  — 逐个新增模型：元数据打底 → Brave 搜索（可选）→ LLM 中文整理（可配置服务）
-     ④ report  — 渲染 Markdown 日报 reports/<source>/YYYY-MM-DD.md（每平台一份，日期为 Asia/Shanghai）
+     ④ report  — 渲染 Markdown 日报 reports/<source>-YYYY-MM-DD-免费模型清单.md（每平台一份，平铺于 reports/，日期为 Asia/Shanghai）
      ⑤ persist — 写快照 data/snapshots/<source>/YYYY-MM-DD.json + git commit（快照与日报同一 commit）
 ```
 
 ## 5. 数据源抽象（多平台扩展点）
 
-- `Source` 接口：`fetch_free_models() -> list[ModelRecord]`，各平台实现一个类并注册到 registry；**日报与快照均按平台独立成文件**：`reports/<source>/YYYY-MM-DD.md` 与 `data/snapshots/<source>/YYYY-MM-DD.json`。
+- `Source` 接口：`fetch_free_models() -> list[ModelRecord]`，各平台实现一个类并注册到 registry；**日报与快照均按平台独立**：日报平铺为 `reports/<source>-YYYY-MM-DD-免费模型清单.md`，快照按目录 `data/snapshots/<source>/YYYY-MM-DD.json`。
 - `ModelRecord` 归一化字段：`source`、`id`（平台原生 id）、`name`、`context_length`、`input_modalities`、`output_modalities`、`created`（Unix 时间戳）、`description`、`links`（平台页等）、`raw`（原始条目，剔除 description 避免重复存储）。
 - 未来接新平台：实现接口 → 注册 → 日报自动多一节。
 - **设计决策：跨平台不去重**。各平台独立追踪、独立 diff、独立成节——同一模型若出现在多个平台，各平台分别列出，互不合并。
@@ -117,7 +117,7 @@ LLM 用量提示：OpenRouter 免费档 50 req/day，若新增数量常超预算
 
 ## 8. 日报格式
 
-每平台一份：`reports/<source>/YYYY-MM-DD.md`（如 `reports/openrouter/2026-09-30.md`），中文，**三段式**，每段内模型按 id 字母序排序，**每个模型一律附平台页链接**（如 `https://openrouter.ai/<id>`）：
+每平台一份，平铺于 `reports/`：`reports/<source>-YYYY-MM-DD-免费模型清单.md`（如 `reports/openrouter-2026-09-30-免费模型清单.md`），中文，**三段式**，每段内模型按 id 字母序排序，**每个模型一律附平台页链接**（如 `https://openrouter.ai/<id>`）：
 
 ```
 # OpenRouter 免费模型日报 2026-09-30
@@ -186,7 +186,7 @@ free-model-spider/
 │   └── cli.py                        # 入口：run / --no-commit
 ├── tests/                            # pytest + respx，fixture 为缓存的 API 响应
 ├── data/snapshots/<source>/YYYY-MM-DD.json
-├── reports/YYYY-MM-DD.md
+├── reports/<source>-YYYY-MM-DD-免费模型清单.md
 ├── pyproject.toml                    # uv 管理
 └── README.md                         # 日报索引 + 使用说明
 ```
