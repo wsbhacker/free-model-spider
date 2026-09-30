@@ -32,7 +32,9 @@ def _git_commit(date: str, data_dir: Path, reports_dir: Path, readme: Path) -> N
         check=False, capture_output=True,
     )
     if result.returncode != 0:
-        if b"nothing to commit" in result.stderr:
+        # git 把"无内容可提交"写到 stdout：含 "nothing to commit..." 与
+        # "nothing added to commit..." 两个变体，统一用 b"nothing" 匹配
+        if b"nothing" in result.stdout:
             print("git commit: nothing to commit, skip")
             return
         result.check_returncode()  # 真实 git 故障 → 非零退出，Actions 红灯（spec §11）

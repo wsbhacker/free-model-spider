@@ -91,6 +91,24 @@ def test_commit_path(tmp_path, monkeypatch):
 
 
 @respx.mock
+def test_no_change_rerun_commit_is_success(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    monkeypatch.chdir(repo)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("BRAVE_API_KEY", raising=False)
+    _mock_api(PAGE_DAY1)
+    assert main(["run", "--date", "2026-09-30"]) == 0
+    assert main(["run", "--date", "2026-09-30"]) == 0  # 无变化重跑：nothing to commit 视为成功
+    log = subprocess.run(
+        ["git", "-C", str(repo), "log", "--oneline"], check=True,
+        capture_output=True, text=True,
+    ).stdout
+    assert len(log.splitlines()) == 2  # init + 唯一一条日报提交
+
+
+@respx.mock
 def test_fetch_failure_propagates(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
     _init_repo(repo)
