@@ -45,6 +45,15 @@ def test_all_models_fail_raises_llm_error():
         llm.complete("sys", "user")
 
 
+@respx.mock
+def test_malformed_200_body_falls_through_to_llm_error():
+    respx.post(URL).mock(return_value=httpx.Response(200, json={"choices": "not-a-list"}))
+    llm = LLMClient(api_base="https://openrouter.ai/api/v1", api_key="k", model="m/a:free",
+                    fallback_models=[], sleep=lambda s: None)
+    with pytest.raises(LLMError):
+        llm.complete("sys", "user")
+
+
 def test_build_client_env(monkeypatch):
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     assert build_llm_client() is None

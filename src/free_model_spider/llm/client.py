@@ -36,7 +36,8 @@ class LLMClient:
         for model in [self.model, *self.fallback_models]:
             try:
                 return self._complete_with_model(model, system, user)
-            except (httpx.HTTPStatusError, httpx.TransportError, KeyError, IndexError):
+            except (httpx.HTTPStatusError, httpx.TransportError, KeyError, IndexError,
+                    ValueError, TypeError):
                 continue
         raise LLMError(f"所有模型均不可用: {self.model}, {self.fallback_models}")
 
