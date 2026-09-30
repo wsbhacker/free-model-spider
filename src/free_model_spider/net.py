@@ -15,6 +15,8 @@ def request_with_retries(
     **kwargs,
 ) -> httpx.Response:
     """429/5xx/传输错误指数退避重试；其他 4xx 不重试直接抛。"""
+    if retries < 1:
+        raise ValueError("retries must be >= 1")
     sleeper = sleep or time.sleep
     delay = 1.0
     for attempt in range(retries):
