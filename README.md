@@ -2,6 +2,8 @@
 
 每日抓取各平台免费大模型，与最近快照对比生成「新增 / 移除 / 无变化」三段式
 Markdown 日报，由 GitHub Actions 每日北京时间 08:30 自动运行并提交。
+每份日报旁附同名 JSON（`schema_version: 1`，含 `added` / `removed` / `unchanged`
+三个数组），供其他程序读取。
 当前数据源：OpenRouter（架构上支持扩展更多平台，各平台独立追踪、不去重）。
 
 ## 日报索引

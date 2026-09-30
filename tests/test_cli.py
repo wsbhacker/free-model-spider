@@ -1,3 +1,4 @@
+import json
 import subprocess
 from pathlib import Path
 
@@ -72,6 +73,35 @@ def test_first_then_second_day(tmp_path, monkeypatch):
     readme = Path("README.md").read_text("utf-8")
     assert readme.count("| 2026-10-01 | OpenRouter |") == 1
     assert readme.count("| 2026-09-30 | OpenRouter |") == 1
+
+
+@respx.mock
+def test_report_json_alongside_md(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    monkeypatch.chdir(repo)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("BRAVE_API_KEY", raising=False)
+
+    route = _mock_api(PAGE_DAY1)
+    assert main(["run", "--date", "2026-09-30", "--no-commit"]) == 0
+    json1 = json.loads(
+        Path("reports/openrouter-2026-09-30-免费模型清单.json").read_text("utf-8")
+    )
+    assert json1["baseline_date"] is None
+    assert json1["added"] == []
+    assert [m["id"] for m in json1["unchanged"]] == ["a/x:free"]
+
+    route.side_effect = [httpx.Response(200, json=PAGE_DAY2)]
+    assert main(["run", "--date", "2026-10-01", "--no-commit"]) == 0
+    json2 = json.loads(
+        Path("reports/openrouter-2026-10-01-免费模型清单.json").read_text("utf-8")
+    )
+    assert json2["baseline_date"] == "2026-09-30"
+    assert [m["id"] for m in json2["added"]] == ["b/y:free"]
+    assert [m["id"] for m in json2["removed"]] == ["a/x:free"]
+    assert json2["unchanged"] == []
 
 
 @respx.mock

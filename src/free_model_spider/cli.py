@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
-from free_model_spider.core.diff import DiffResult, diff_models
+from free_model_spider.core.diff import DiffResult, diff_models, dump_diff_json
 from free_model_spider.core.intro import build_intro
 from free_model_spider.core.report import IndexEntry, render_report, update_readme_index
 from free_model_spider.core.snapshot import (
@@ -86,6 +86,15 @@ def main(argv: list[str] | None = None) -> int:
         )
         args.reports_dir.mkdir(parents=True, exist_ok=True)
         report_rel.write_text(text, encoding="utf-8")
+        json_rel = report_rel.with_suffix(".json")
+        json_rel.write_text(
+            dump_diff_json(
+                diff, source=name, display_name=source.display_name,
+                date=date, baseline_date=latest.stem if latest else None,
+                total=len(records),
+            ),
+            encoding="utf-8",
+        )
         entries.append(IndexEntry(
             date=date, source=name, display=source.display_name,
             added=len(diff.added), removed=len(diff.removed),
