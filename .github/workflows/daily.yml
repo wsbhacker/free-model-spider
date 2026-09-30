@@ -1,0 +1,44 @@
+name: daily-free-model-report
+
+on:
+  schedule:
+    - cron: "30 0 * * *"  # UTC 00:30 = 北京 08:30
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-free-model-report
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Install dependencies
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          uv sync --frozen
+
+      - name: Configure git identity
+        run: |
+          git config user.name "free-model-bot"
+          git config user.email "free-model-bot@users.noreply.github.com"
+
+      - name: Run daily report
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
+          LLM_API_BASE: ${{ vars.LLM_API_BASE }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          LLM_FALLBACK_MODELS: ${{ vars.LLM_FALLBACK_MODELS }}
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          uv run fms run
