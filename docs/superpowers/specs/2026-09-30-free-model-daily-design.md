@@ -17,7 +17,7 @@
 1. 每日定时（北京时间 08:30 左右）抓取免费模型列表并生成快照。
 2. 与昨日快照 diff：报告新增、移除，以及当前总量。
 3. 对每个新增模型生成介绍卡片：**不设数量上限**，每个都走完整管线。
-4. 日报为 Markdown，按数据源分节，提交进仓库——**每天一份、每天一个 commit**（无论当日有无增删，见 §8）。
+4. 日报为 Markdown，**每平台一份文件**，提交进仓库——每天一个 commit（无论当日有无增删，见 §8）。
 5. 支持手动触发（workflow_dispatch）与本地手动运行。
 
 ### 非功能需求
@@ -84,13 +84,13 @@ GitHub Actions（cron 30 0 * * * UTC = 北京 08:30，支持手动触发）
      ① fetch   — 各数据源拉取免费模型列表（当前仅 openrouter）
      ② diff    — 与昨日快照对比 → 新增 / 移除 / 总量
      ③ enrich  — 逐个新增模型：元数据打底 → Brave 搜索（可选）→ LLM 中文整理（可配置服务）
-     ④ report  — 渲染 Markdown 日报 reports/YYYY-MM-DD.md（日期为 Asia/Shanghai）
+     ④ report  — 渲染 Markdown 日报 reports/<source>/YYYY-MM-DD.md（每平台一份，日期为 Asia/Shanghai）
      ⑤ persist — 写快照 data/snapshots/<source>/YYYY-MM-DD.json + git commit（快照与日报同一 commit）
 ```
 
 ## 5. 数据源抽象（多平台扩展点）
 
-- `Source` 接口：`fetch_free_models() -> list[ModelRecord]`，各平台实现一个类并注册到 registry；日报与快照按 source 分目录/分节。
+- `Source` 接口：`fetch_free_models() -> list[ModelRecord]`，各平台实现一个类并注册到 registry；**日报与快照均按平台独立成文件**：`reports/<source>/YYYY-MM-DD.md` 与 `data/snapshots/<source>/YYYY-MM-DD.json`。
 - `ModelRecord` 归一化字段：`source`、`id`（平台原生 id）、`name`、`context_length`、`input_modalities`、`output_modalities`、`created`（Unix 时间戳）、`description`、`links`（平台页等）、`raw`（原始条目，剔除 description 避免重复存储）。
 - 未来接新平台：实现接口 → 注册 → 日报自动多一节。
 - **设计决策：跨平台不去重**。各平台独立追踪、独立 diff、独立成节——同一模型若出现在多个平台，各平台分别列出，互不合并。
@@ -117,7 +117,7 @@ LLM 用量提示：OpenRouter 免费档 50 req/day，若新增数量常超预算
 
 ## 8. 日报格式
 
-`reports/YYYY-MM-DD.md`，中文，**三段式**，每段内模型按 id 字母序排序，**每个模型一律附平台页链接**（如 `https://openrouter.ai/<id>`）：
+每平台一份：`reports/<source>/YYYY-MM-DD.md`（如 `reports/openrouter/2026-09-30.md`），中文，**三段式**，每段内模型按 id 字母序排序，**每个模型一律附平台页链接**（如 `https://openrouter.ai/<id>`）：
 
 ```
 # OpenRouter 免费模型日报 2026-09-30
@@ -140,7 +140,7 @@ LLM 用量提示：OpenRouter 免费档 50 req/day，若新增数量常超预算
 
 **无增删日**：日报照常生成——第一、二部分标题标记"无变化"（如 `## 🆕 新增——无变化`、`## 🗑️ 移除——无变化`），第三部分照常列出全部存量免费模型。因此每天一份日报、每天一个 commit。
 
-`README.md` 维护日报索引（日期 + 新增/移除数），由脚本自动更新。
+`README.md` 维护日报索引：按日期倒序的表格（日期、各平台新增/移除数、日报文件链接），由脚本自动更新。
 
 ## 9. 配置设计（环境变量）
 
