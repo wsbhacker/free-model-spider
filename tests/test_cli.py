@@ -71,8 +71,9 @@ def test_first_then_second_day(tmp_path, monkeypatch):
     assert "## 🗑️ 移除 (1)" in report2
     assert "[a/x:free]" in report2
     readme = Path("README.md").read_text("utf-8")
-    assert readme.count("| 2026-10-01 | OpenRouter |") == 1
-    assert readme.count("| 2026-09-30 | OpenRouter |") == 1
+    assert readme.count("| 2026-10-01 | +1 | -1 |") == 1
+    assert readme.count("| 2026-09-30 | +0 | -0 |") == 1
+    assert "### OpenRouter" in readme
 
 
 @respx.mock
@@ -125,7 +126,7 @@ def test_first_day_skips_intro_pipeline(tmp_path, monkeypatch):
     assert main(["run", "--sources", "openrouter", "--date", "2026-09-30", "--no-commit"]) == 0
     assert calls == []  # 首日基线：不生成介绍
     readme = Path("README.md").read_text("utf-8")
-    assert "| 2026-09-30 | OpenRouter | +0 | -0 |" in readme
+    assert "| 2026-09-30 | +0 | -0 |" in readme
 
     route.side_effect = [httpx.Response(200, json=PAGE_DAY2)]
     assert main(["run", "--sources", "openrouter", "--date", "2026-10-01", "--no-commit"]) == 0

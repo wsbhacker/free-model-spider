@@ -74,26 +74,72 @@ def test_anomalies_section():
     assert "- <未知id>: KeyError('id')" in text
 
 
-def test_update_readme_index(tmp_path: Path):
+def _mk_readme(tmp_path: Path) -> Path:
     readme = tmp_path / "README.md"
-    readme.write_text("# free-model-spider\n\n## 日报索引\n\n<!-- fms-index:start -->\n"
-                      "| 日期 | 平台 | 新增 | 移除 | 日报 |\n|---|---|---|---|---|\n"
-                      "<!-- fms-index:end -->\n", encoding="utf-8")
+    readme.write_text("# free-model-spider\n\n## 日报索引\n\n"
+                      "<!-- fms-index:start -->\n<!-- fms-index:end -->\n",
+                      encoding="utf-8")
+    return readme
+
+
+def test_update_readme_index_per_source_sections(tmp_path: Path):
+    readme = _mk_readme(tmp_path)
     update_readme_index(readme, [
         ("2026-09-30", "openrouter", "OpenRouter", 2, 1,
          "reports/openrouter-2026-09-30-免费模型清单.md"),
-        ("2026-09-29", "openrouter", "OpenRouter", 0, 0,
-         "reports/openrouter-2026-09-29-免费模型清单.md"),
+        ("2026-09-30", "opencode", "OpenCode", 0, 0,
+         "reports/opencode-2026-09-30-免费模型清单.md"),
     ])
     text = readme.read_text(encoding="utf-8")
-    assert "reports/openrouter-2026-09-30-免费模型清单.md" in text
-    assert text.index("2026-09-30") < text.index("2026-09-29")  # 日期倒序
+    assert "### OpenCode" in text and "### OpenRouter" in text
+    assert text.index("### OpenCode") < text.index("### OpenRouter")  # 节按名称排序
+    assert "| 日期 | 新增 | 移除 | 日报 |" in text  # 无平台列
+    assert "| 日期 | 平台 |" not in text
+    assert ("| 2026-09-30 | +2 | -1 | "
+            "[链接](reports/openrouter-2026-09-30-免费模型清单.md) |") in text
 
-    # 同日重跑：替换旧行而不是追加
+
+def test_update_readme_index_same_day_rerun_replaces(tmp_path: Path):
+    readme = _mk_readme(tmp_path)
+    update_readme_index(readme, [
+        ("2026-09-30", "openrouter", "OpenRouter", 2, 1,
+         "reports/openrouter-2026-09-30-免费模型清单.md"),
+    ])
     update_readme_index(readme, [
         ("2026-09-30", "openrouter", "OpenRouter", 3, 0,
          "reports/openrouter-2026-09-30-免费模型清单.md"),
     ])
     text = readme.read_text(encoding="utf-8")
-    assert text.count("| 2026-09-30 | OpenRouter |") == 1
+    assert text.count("| 2026-09-30 |") == 1  # 同日重跑：替换而非追加
     assert "+3" in text and "+2" not in text
+
+
+def test_update_readme_index_keeps_other_source_sections(tmp_path: Path):
+    readme = _mk_readme(tmp_path)
+    update_readme_index(readme, [
+        ("2026-09-30", "openrouter", "OpenRouter", 2, 1,
+         "reports/openrouter-2026-09-30-免费模型清单.md"),
+    ])
+    # 只跑 opencode 的一天：OpenRouter 的节与历史行必须保留
+    update_readme_index(readme, [
+        ("2026-10-01", "opencode", "OpenCode", 1, 0,
+         "reports/opencode-2026-10-01-免费模型清单.md"),
+    ])
+    text = readme.read_text(encoding="utf-8")
+    assert "### OpenRouter" in text
+    assert ("| 2026-09-30 | +2 | -1 | "
+            "[链接](reports/openrouter-2026-09-30-免费模型清单.md) |") in text
+
+
+def test_update_readme_index_caps_15_per_source(tmp_path: Path):
+    readme = _mk_readme(tmp_path)
+    days = [f"2026-09-{d:02d}" for d in range(1, 17)]  # 16 天
+    update_readme_index(readme, [
+        (d, "openrouter", "OpenRouter", 0, 0,
+         f"reports/openrouter-{d}-免费模型清单.md")
+        for d in days
+    ])
+    text = readme.read_text(encoding="utf-8")
+    assert text.count("| 2026-09-") == 15  # 只展示最近 15 条
+    assert "2026-09-01" not in text  # 最旧一行被裁掉（仅 README 展示，文件不删）
+    assert "2026-09-16" in text and "2026-09-02" in text

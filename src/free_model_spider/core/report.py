@@ -8,6 +8,11 @@ from free_model_spider.sources.base import ModelRecord, sort_records
 
 INDEX_START = "<!-- fms-index:start -->"
 INDEX_END = "<!-- fms-index:end -->"
+MAX_INDEX_ROWS_PER_SOURCE = 15  # README 索引仅展示窗口；reports/ 与快照不受影响
+
+_INDEX_HEADING_RE = re.compile(r"^### (.+)$")
+# 行格式：| 2026-09-30 | +2 | -1 | [链接](reports/...) |
+_INDEX_ROW_RE = re.compile(r"^\| (\d{4}-\d{2}-\d{2}) \| \+\d+ \| -\d+ \| ")
 
 
 class IndexEntry(NamedTuple):
@@ -104,9 +109,6 @@ def render_report(
     return "\n".join(lines)
 
 
-_ROW_RE = re.compile(r"^\| (\d{4}-\d{2}-\d{2}) \| (\S+) \|")
-
-
 def update_readme_index(readme: Path, entries: list[IndexEntry]) -> None:
     entries = [IndexEntry(*e) for e in entries]  # 兼容裸元组
     if readme.exists():
@@ -115,26 +117,34 @@ def update_readme_index(readme: Path, entries: list[IndexEntry]) -> None:
         text = "# free-model-spider\n"
     start = text.find(INDEX_START)
     end = text.find(INDEX_END)
-    rows: list[tuple[str, str, str]] = []  # (date, 显示名, raw_line)
+    # 解析已有索引：节标题（平台显示名）→ [(日期, 行)]；节内行按日期去重合并当日条目
+    sections: dict[str, list[tuple[str, str]]] = {}
     if start != -1 and end != -1:
+        current: str | None = None
         for line in text[start + len(INDEX_START) : end].splitlines():
-            m = _ROW_RE.match(line)
-            if m:
-                rows.append((m.group(1), m.group(2), line))
+            heading = _INDEX_HEADING_RE.match(line)
+            if heading:
+                current = heading.group(1).strip()
+                sections.setdefault(current, [])
+            elif current is not None and (m := _INDEX_ROW_RE.match(line)):
+                sections[current].append((m.group(1), line))
     else:
         text = text.rstrip("\n") + "\n\n## 日报索引\n\n"
         start, end = -1, -1
-    today_keys = {(e.date, e.display) for e in entries}
-    rows = [r for r in rows if (r[0], r[1]) not in today_keys]
     for e in entries:
-        rows.append((e.date, e.source,
-                     f"| {e.date} | {e.display} | +{e.added} | -{e.removed} | "
-                     f"[链接]({e.path}) |"))
-    rows.sort(key=lambda r: (r[0], r[1]), reverse=True)
-    block = "\n".join(
-        ["| 日期 | 平台 | 新增 | 移除 | 日报 |", "|---|---|---|---|---|",
-         *[r[2] for r in rows]]
-    )
+        rows = [r for r in sections.get(e.display, []) if r[0] != e.date]
+        rows.append((e.date, f"| {e.date} | +{e.added} | -{e.removed} | [链接]({e.path}) |"))
+        sections[e.display] = rows
+    parts: list[str] = []
+    for display in sorted(sections):
+        rows = sorted(sections[display], key=lambda r: r[0], reverse=True)
+        if not rows:
+            continue
+        parts.append(
+            f"### {display}\n\n| 日期 | 新增 | 移除 | 日报 |\n|---|---|---|---|\n"
+            + "\n".join(r[1] for r in rows[:MAX_INDEX_ROWS_PER_SOURCE])
+        )
+    block = "\n\n".join(parts)
     if start != -1 and end != -1:
         text = text[: start + len(INDEX_START)] + "\n" + block + "\n" + text[end:]
     else:
