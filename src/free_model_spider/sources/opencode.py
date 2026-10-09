@@ -9,6 +9,8 @@ from free_model_spider.sources.base import ModelRecord, Source, sort_records
 from free_model_spider.sources.registry import register
 
 DOCS_URL = "https://opencode.ai/docs/zen"
+# 仅用于补全上下文/模态字段；免费判定 100% 以 DOCS_URL 官网定价表为准
+MODELS_DEV_URL = "https://models.dev/api.json"
 
 _TABLE_RE = re.compile(r"<table.*?</table>", re.S)
 _ROW_RE = re.compile(r"<tr[^>]*>(.*?)</tr>", re.S)
@@ -70,15 +72,36 @@ def is_free(row: dict[str, str]) -> bool:
     return row["input"].strip().casefold() == "free" and row["output"].strip().casefold() == "free"
 
 
-def normalize(name: str, model_id: str, pricing: dict[str, str]) -> ModelRecord:
-    # 官网表格不提供上下文长度/模态/介绍等字段，如实留空（B1 方案已知代价）
+def normalize(
+    name: str, model_id: str, pricing: dict[str, str], meta: dict | None = None,
+) -> ModelRecord:
+    # 官网表格不提供上下文长度/模态/介绍等字段，meta 来自 models.dev 补全，缺则留空
+    meta = meta or {}
     return ModelRecord(
         source="opencode",
         id=model_id,
         name=name,
+        context_length=meta.get("context_length"),
+        input_modalities=meta.get("input_modalities", []),
+        output_modalities=meta.get("output_modalities", []),
         links={"platform_page": DOCS_URL},
         raw={"pricing": pricing},
     )
+
+
+def _fetch_modelsdev_metadata(client: httpx.Client) -> dict[str, dict]:
+    resp = request_with_retries(client, "GET", MODELS_DEV_URL, timeout=60)
+    models = (resp.json().get("opencode") or {}).get("models") or {}
+    metadata: dict[str, dict] = {}
+    for mid, m in models.items():
+        limit = m.get("limit") or {}
+        modalities = m.get("modalities") or {}
+        metadata[mid] = {
+            "context_length": limit.get("context"),
+            "input_modalities": list(modalities.get("input") or []),
+            "output_modalities": list(modalities.get("output") or []),
+        }
+    return metadata
 
 
 @register
@@ -98,6 +121,13 @@ class OpenCodeSource(Source):
             errors.append("页面缺少模型表（表头需含 Model ID），无法将定价行映射到 Model ID")
             self.last_errors = errors
             return []
+        metadata: dict[str, dict] = {}
+        try:
+            metadata = _fetch_modelsdev_metadata(self.client)
+            if not metadata:
+                errors.append("models.dev 无 opencode 模型元数据，上下文/模态列将为未知")
+        except Exception as exc:  # 第三方故障只降级不阻断官网免费列表
+            errors.append(f"models.dev 元数据补全失败：{exc}")
         records: list[ModelRecord] = []
         for row in pricing:
             if not is_free(row) or row["model"] in deprecated:
@@ -106,6 +136,6 @@ class OpenCodeSource(Source):
             if model_id is None:
                 errors.append(f"{row['model']}: 定价表行未匹配到 Model ID")
                 continue
-            records.append(normalize(row["model"], model_id, row))
+            records.append(normalize(row["model"], model_id, row, metadata.get(model_id)))
         self.last_errors = errors
         return sort_records(records)

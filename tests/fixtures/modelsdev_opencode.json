@@ -1,0 +1,18 @@
+{
+  "opencode": {
+    "models": {
+      "big-pickle": {
+        "limit": {"context": 200000, "output": 32768},
+        "modalities": {"input": ["text"], "output": ["text"]}
+      },
+      "exo-free": {
+        "limit": {"context": 1048576},
+        "modalities": {"input": ["text", "image"], "output": ["text"]}
+      },
+      "gpt-6-astra": {
+        "limit": {"context": 400000},
+        "modalities": {"input": ["text"], "output": ["text"]}
+      }
+    }
+  }
+}
