@@ -57,14 +57,14 @@ def test_first_then_second_day(tmp_path, monkeypatch):
     monkeypatch.delenv("BRAVE_API_KEY", raising=False)
 
     route = _mock_api(PAGE_DAY1)
-    assert main(["run", "--date", "2026-09-30", "--no-commit"]) == 0
+    assert main(["run", "--sources", "openrouter", "--date", "2026-09-30", "--no-commit"]) == 0
     report1 = Path("reports/openrouter-2026-09-30-免费模型清单.md").read_text("utf-8")
     assert "首日基线" in report1
     assert "## 🆕 新增——无变化" in report1
     assert Path("data/snapshots/openrouter/2026-09-30.json").exists()
 
     route.side_effect = [httpx.Response(200, json=PAGE_DAY2)]
-    assert main(["run", "--date", "2026-10-01", "--no-commit"]) == 0
+    assert main(["run", "--sources", "openrouter", "--date", "2026-10-01", "--no-commit"]) == 0
     report2 = Path("reports/openrouter-2026-10-01-免费模型清单.md").read_text("utf-8")
     assert "免费 1 个（2026-09-30：+1 / -1）" in report2
     assert "### b/y:free" in report2
@@ -85,7 +85,7 @@ def test_report_json_alongside_md(tmp_path, monkeypatch):
     monkeypatch.delenv("BRAVE_API_KEY", raising=False)
 
     route = _mock_api(PAGE_DAY1)
-    assert main(["run", "--date", "2026-09-30", "--no-commit"]) == 0
+    assert main(["run", "--sources", "openrouter", "--date", "2026-09-30", "--no-commit"]) == 0
     json1 = json.loads(
         Path("reports/openrouter-2026-09-30-免费模型清单.json").read_text("utf-8")
     )
@@ -94,7 +94,7 @@ def test_report_json_alongside_md(tmp_path, monkeypatch):
     assert [m["id"] for m in json1["unchanged"]] == ["a/x:free"]
 
     route.side_effect = [httpx.Response(200, json=PAGE_DAY2)]
-    assert main(["run", "--date", "2026-10-01", "--no-commit"]) == 0
+    assert main(["run", "--sources", "openrouter", "--date", "2026-10-01", "--no-commit"]) == 0
     json2 = json.loads(
         Path("reports/openrouter-2026-10-01-免费模型清单.json").read_text("utf-8")
     )
@@ -122,13 +122,13 @@ def test_first_day_skips_intro_pipeline(tmp_path, monkeypatch):
     monkeypatch.setattr("free_model_spider.cli.build_intro", fake_build_intro)
 
     route = _mock_api(PAGE_DAY1)
-    assert main(["run", "--date", "2026-09-30", "--no-commit"]) == 0
+    assert main(["run", "--sources", "openrouter", "--date", "2026-09-30", "--no-commit"]) == 0
     assert calls == []  # 首日基线：不生成介绍
     readme = Path("README.md").read_text("utf-8")
     assert "| 2026-09-30 | OpenRouter | +0 | -0 |" in readme
 
     route.side_effect = [httpx.Response(200, json=PAGE_DAY2)]
-    assert main(["run", "--date", "2026-10-01", "--no-commit"]) == 0
+    assert main(["run", "--sources", "openrouter", "--date", "2026-10-01", "--no-commit"]) == 0
     assert calls == ["b/y:free"]  # 次日：仅新增模型生成介绍
     report2 = Path("reports/openrouter-2026-10-01-免费模型清单.md").read_text("utf-8")
     assert "### b/y:free" in report2
@@ -143,7 +143,7 @@ def test_commit_path(tmp_path, monkeypatch):
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.delenv("BRAVE_API_KEY", raising=False)
     _mock_api(PAGE_DAY1)
-    assert main(["run", "--date", "2026-09-30"]) == 0
+    assert main(["run", "--sources", "openrouter", "--date", "2026-09-30"]) == 0
     log = subprocess.run(
         ["git", "-C", str(repo), "log", "--oneline"], check=True,
         capture_output=True, text=True,
@@ -160,8 +160,8 @@ def test_no_change_rerun_commit_is_success(tmp_path, monkeypatch):
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.delenv("BRAVE_API_KEY", raising=False)
     _mock_api(PAGE_DAY1)
-    assert main(["run", "--date", "2026-09-30"]) == 0
-    assert main(["run", "--date", "2026-09-30"]) == 0  # 无变化重跑：nothing to commit 视为成功
+    assert main(["run", "--sources", "openrouter", "--date", "2026-09-30"]) == 0
+    assert main(["run", "--sources", "openrouter", "--date", "2026-09-30"]) == 0  # 无变化重跑：nothing to commit 视为成功
     log = subprocess.run(
         ["git", "-C", str(repo), "log", "--oneline"], check=True,
         capture_output=True, text=True,
@@ -181,7 +181,7 @@ def test_fetch_failure_propagates(tmp_path, monkeypatch):
         return_value=httpx.Response(500)
     )
     try:
-        main(["run", "--date", "2026-09-30", "--no-commit"])
+        main(["run", "--sources", "openrouter", "--date", "2026-09-30", "--no-commit"])
         raised = False
     except httpx.HTTPStatusError:
         raised = True
