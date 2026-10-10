@@ -1,0 +1,258 @@
+{
+  "schema_version": 1,
+  "source": "opencode",
+  "display_name": "OpenCode",
+  "date": "2026-10-10",
+  "baseline_date": "2026-10-09",
+  "total": 13,
+  "added": [],
+  "removed": [],
+  "unchanged": [
+    {
+      "source": "opencode",
+      "id": "big-pickle",
+      "name": "Big Pickle",
+      "context_length": 200000,
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/docs/zen"
+      },
+      "page_url": "https://opencode.ai/docs/zen"
+    },
+    {
+      "source": "opencode",
+      "id": "exo-free",
+      "name": "Exo Free",
+      "context_length": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/docs/zen"
+      },
+      "page_url": "https://opencode.ai/docs/zen"
+    },
+    {
+      "source": "opencode",
+      "id": "jev-1.13-free",
+      "name": "Jev 1.13 Free",
+      "context_length": null,
+      "input_modalities": [],
+      "output_modalities": [],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/docs/zen"
+      },
+      "page_url": "https://opencode.ai/docs/zen"
+    },
+    {
+      "source": "opencode",
+      "id": "ling-3.0-flash-fin-free",
+      "name": "Ling 3.0 Flash Fin Free",
+      "context_length": 262144,
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/docs/zen"
+      },
+      "page_url": "https://opencode.ai/docs/zen"
+    },
+    {
+      "source": "opencode",
+      "id": "ling-3.1-flash-free",
+      "name": "Ling 3.1 Flash Free",
+      "context_length": 262144,
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/docs/zen"
+      },
+      "page_url": "https://opencode.ai/docs/zen"
+    },
+    {
+      "source": "opencode",
+      "id": "longcat-2.5-preview-free",
+      "name": "LongCat 2.5 Preview Free",
+      "context_length": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/docs/zen"
+      },
+      "page_url": "https://opencode.ai/docs/zen"
+    },
+    {
+      "source": "opencode",
+      "id": "mimo-v2.5-free",
+      "name": "MiMo-V2.5 Free",
+      "context_length": 200000,
+      "input_modalities": [
+        "text",
+        "image",
+        "audio",
+        "video"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/docs/zen"
+      },
+      "page_url": "https://opencode.ai/docs/zen"
+    },
+    {
+      "source": "opencode",
+      "id": "mimo-v2.6-flash-free",
+      "name": "MiMo-V2.6-Flash Free",
+      "context_length": 200000,
+      "input_modalities": [
+        "text",
+        "image",
+        "audio",
+        "video"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/docs/zen"
+      },
+      "page_url": "https://opencode.ai/docs/zen"
+    },
+    {
+      "source": "opencode",
+      "id": "muse-spark-1.3-contributor-free",
+      "name": "Muse Spark 1.3 Contributor Free",
+      "context_length": 1048576,
+      "input_modalities": [
+        "text",
+        "image",
+        "video",
+        "pdf",
+        "audio"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/docs/zen"
+      },
+      "page_url": "https://opencode.ai/docs/zen"
+    },
+    {
+      "source": "opencode",
+      "id": "nemotron-3-ultra-free",
+      "name": "Nemotron 3 Ultra Free",
+      "context_length": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/docs/zen"
+      },
+      "page_url": "https://opencode.ai/docs/zen"
+    },
+    {
+      "source": "opencode",
+      "id": "nemotron-3.5-lightning-free",
+      "name": "Nemotron 3.5 Lightning Free",
+      "context_length": 262144,
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/docs/zen"
+      },
+      "page_url": "https://opencode.ai/docs/zen"
+    },
+    {
+      "source": "opencode",
+      "id": "space-bunny-free",
+      "name": "Space Bunny Free",
+      "context_length": 1048576,
+      "input_modalities": [
+        "text",
+        "image",
+        "video"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/docs/zen"
+      },
+      "page_url": "https://opencode.ai/docs/zen"
+    },
+    {
+      "source": "opencode",
+      "id": "step-5-preview-free",
+      "name": "Step 5 Preview Free",
+      "context_length": 1000000,
+      "input_modalities": [
+        "text",
+        "image",
+        "video"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/docs/zen"
+      },
+      "page_url": "https://opencode.ai/docs/zen"
+    }
+  ]
+}
