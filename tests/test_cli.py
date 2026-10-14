@@ -7,6 +7,7 @@ import respx
 
 from free_model_spider.cli import main
 from free_model_spider.core.intro import metadata_card
+from free_model_spider.sources.opencode import DOCS_URL
 
 PAGE_DAY1 = {
     "data": [
@@ -171,7 +172,7 @@ def test_no_change_rerun_commit_is_success(tmp_path, monkeypatch):
 
 
 @respx.mock
-def test_fetch_failure_propagates(tmp_path, monkeypatch):
+def test_fetch_failure_returns_nonzero(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
     _init_repo(repo)
     monkeypatch.chdir(repo)
@@ -181,9 +182,47 @@ def test_fetch_failure_propagates(tmp_path, monkeypatch):
     respx.get("https://openrouter.ai/api/v1/models").mock(
         return_value=httpx.Response(500)
     )
-    try:
-        main(["run", "--sources", "openrouter", "--date", "2026-09-30", "--no-commit"])
-        raised = False
-    except httpx.HTTPStatusError:
-        raised = True
-    assert raised
+    # 单源失败不再向上抛：返回非零（Actions 红灯），且不留半套产物
+    assert main(["run", "--sources", "openrouter", "--date", "2026-09-30", "--no-commit"]) == 1
+    assert not Path("data/snapshots/openrouter/2026-09-30.json").exists()
+    assert not Path("reports/openrouter-2026-09-30-免费模型清单.md").exists()
+
+
+@respx.mock
+def test_source_failure_isolated(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    monkeypatch.chdir(repo)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("BRAVE_API_KEY", raising=False)
+    monkeypatch.setattr("time.sleep", lambda s: None)  # 跳过重试退避等待
+    respx.get(DOCS_URL).mock(return_value=httpx.Response(500))  # opencode 挂
+    _mock_api(PAGE_DAY1)  # openrouter 正常
+    rc = main(["run", "--sources", "opencode,openrouter", "--date", "2026-09-30", "--no-commit"])
+    assert rc == 1  # 有源失败 → 整体非零，红灯可见
+    # 成功源照常出全套产物并进索引，失败源无任何产物
+    assert Path("reports/openrouter-2026-09-30-免费模型清单.md").exists()
+    assert Path("reports/openrouter-2026-09-30-免费模型清单.json").exists()
+    assert Path("data/snapshots/openrouter/2026-09-30.json").exists()
+    assert not Path("reports/opencode-2026-09-30-免费模型清单.md").exists()
+    assert not Path("data/snapshots/opencode/2026-09-30.json").exists()
+    readme = Path("README.md").read_text("utf-8")
+    assert "### OpenRouter" in readme
+    assert "### OpenCode" not in readme
+
+
+@respx.mock
+def test_all_sources_fail_no_readme_pollution(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    monkeypatch.chdir(repo)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("BRAVE_API_KEY", raising=False)
+    monkeypatch.setattr("time.sleep", lambda s: None)  # 跳过重试退避等待
+    respx.get(DOCS_URL).mock(return_value=httpx.Response(500))
+    respx.get("https://openrouter.ai/api/v1/models").mock(return_value=httpx.Response(500))
+    assert main(["run", "--sources", "opencode,openrouter", "--date", "2026-09-30", "--no-commit"]) == 1
+    # 全源失败：不往 README 写空索引块
+    assert Path("README.md").read_text("utf-8") == "# free-model-spider\n"

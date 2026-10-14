@@ -8,7 +8,8 @@ from free_model_spider.net import request_with_retries
 from free_model_spider.sources.base import ModelRecord, Source, sort_records
 from free_model_spider.sources.registry import register
 
-DOCS_URL = "https://opencode.ai/docs/zen"
+# 2026-10-14 原 /docs/zen 302 至此地址；解析表格结构未变
+DOCS_URL = "https://opencode.ai/v2/docs/console/models/"
 # 仅用于补全上下文/模态字段；免费判定 100% 以 DOCS_URL 官网定价表为准
 MODELS_DEV_URL = "https://models.dev/api.json"
 

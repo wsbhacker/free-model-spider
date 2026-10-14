@@ -56,54 +56,66 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     date = args.date or datetime.now(SHANGHAI).strftime("%Y-%m-%d")
-    client = httpx.Client(timeout=60)
+    # follow_redirects：上游文档站偶发整页搬迁（302），跟随以免硬崩
+    client = httpx.Client(timeout=60, follow_redirects=True)
     names = args.sources.split(",") if args.sources else available_sources()
     search = build_search_provider(client)
     llm = build_llm_client(client)
     entries: list[IndexEntry] = []
+    failed: list[str] = []
 
     for name in names:
         source = create_source(name, client)
-        records = source.fetch_free_models()
-        latest = find_latest_snapshot(args.data_dir, name, date)
-        intros: dict = {}
-        if latest is None:
-            # 首日基线：全部计入存量，不生成介绍（spec §6；render 对 yesterday_date=None 的重映射与此幂等）
-            diff = DiffResult(added=[], removed=[], unchanged=sort_records(records))
-        else:
-            diff = diff_models(records, load_snapshot(latest))
-            for record in diff.added:
-                intros[record.id] = build_intro(record, search, llm)
-                if llm is not None:
-                    time.sleep(3)
-        spath = snapshot_path(args.data_dir, name, date)
-        save_snapshot(records, spath, name, date)
-        report_rel = args.reports_dir / f"{name}-{date}-免费模型清单.md"
-        text = render_report(
-            source.display_name, date, records, diff, intros,
-            latest.stem if latest else None, spath.as_posix(),
-            anomalies=source.last_errors or None,
-        )
-        args.reports_dir.mkdir(parents=True, exist_ok=True)
-        report_rel.write_text(text, encoding="utf-8")
-        json_rel = report_rel.with_suffix(".json")
-        json_rel.write_text(
-            dump_diff_json(
-                diff, source=name, display_name=source.display_name,
-                date=date, baseline_date=latest.stem if latest else None,
-                total=len(records),
-            ),
-            encoding="utf-8",
-        )
-        entries.append(IndexEntry(
-            date=date, source=name, display=source.display_name,
-            added=len(diff.added), removed=len(diff.removed),
-            path=report_rel.as_posix(),
-        ))
-        print(f"{name}: 免费 {len(records)}（+{len(diff.added)} / -{len(diff.removed)}）"
-              f" -> {report_rel}")
+        try:
+            records = source.fetch_free_models()
+            latest = find_latest_snapshot(args.data_dir, name, date)
+            intros: dict = {}
+            if latest is None:
+                # 首日基线：全部计入存量，不生成介绍（spec §6；render 对 yesterday_date=None 的重映射与此幂等）
+                diff = DiffResult(added=[], removed=[], unchanged=sort_records(records))
+            else:
+                diff = diff_models(records, load_snapshot(latest))
+                for record in diff.added:
+                    intros[record.id] = build_intro(record, search, llm)
+                    if llm is not None:
+                        time.sleep(3)
+            spath = snapshot_path(args.data_dir, name, date)
+            save_snapshot(records, spath, name, date)
+            report_rel = args.reports_dir / f"{name}-{date}-免费模型清单.md"
+            text = render_report(
+                source.display_name, date, records, diff, intros,
+                latest.stem if latest else None, spath.as_posix(),
+                anomalies=source.last_errors or None,
+            )
+            args.reports_dir.mkdir(parents=True, exist_ok=True)
+            report_rel.write_text(text, encoding="utf-8")
+            json_rel = report_rel.with_suffix(".json")
+            json_rel.write_text(
+                dump_diff_json(
+                    diff, source=name, display_name=source.display_name,
+                    date=date, baseline_date=latest.stem if latest else None,
+                    total=len(records),
+                ),
+                encoding="utf-8",
+            )
+            entries.append(IndexEntry(
+                date=date, source=name, display=source.display_name,
+                added=len(diff.added), removed=len(diff.removed),
+                path=report_rel.as_posix(),
+            ))
+            print(f"{name}: 免费 {len(records)}（+{len(diff.added)} / -{len(diff.removed)}）"
+                  f" -> {report_rel}")
+        except Exception as exc:  # 单源隔离：上游改版/故障只损失该源，其余源照常出报告并提交
+            failed.append(name)
+            print(f"{name}: 处理失败，跳过该源：{exc!r}")
+            continue
 
-    update_readme_index(args.readme, entries)
+    if entries:
+        update_readme_index(args.readme, entries)
     if not args.no_commit:
         _git_commit(date, args.data_dir, args.reports_dir, args.readme)
+    if failed:
+        # 非零退出让 Actions 红灯可见；成功源产物已在上面照常提交
+        print(f"失败源：{'、'.join(failed)}")
+        return 1
     return 0
