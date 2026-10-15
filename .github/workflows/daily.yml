@@ -2,7 +2,7 @@ name: daily-free-model-report
 
 on:
   schedule:
-    - cron: "0 23 * * *" # UTC + 8 = 北京
+    - cron: "3 23 * * *" # UTC + 8 = 北京
   workflow_dispatch:
 
 permissions:
