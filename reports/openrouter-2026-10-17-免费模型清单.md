@@ -4,9 +4,9 @@
 ## 🆕 新增 (1)
 ### xingchen-agi/xing4.0-29b-a4b:free
 - 名称：XingChen: Xing4.0 29B A4B (free)
-- 介绍：Xing4.0-29B-A4B 是中国电信人工智能科技有限公司（TeleAI）推出的星辰系列（原TeleChat系列）新一代开源权重大语言模型，采用混合专家（MoE）架构，总参数29B、每token仅激活4B参数。该版本提供262,144 token上下文窗口，支持文本输入与输出，采用Apache-2.0许可，可在OpenRouter免费调用，并提供兼容Transformers、vLLM、SGLang等主流框架的权重。
-- 要点：中国电信TeleAI开发，星辰（原TeleChat）系列的下一代大模型；MoE架构：29B总参数，每token激活4B参数；上下文长度262,144 token，纯文本输入输出；Apache-2.0开源许可，OpenRouter提供免费调用；提供GGUF及Hugging Face格式权重，兼容vLLM、SGLang等推理框架
-- 注意：材料未提供模型训练数据、评测成绩及具体能力表现等细节；搜索结果中关于速度、延迟的数据来自第三方站点，仅供参考。
+- 介绍：Xing4.0-29B-A4B 是中国电信人工智能科技有限公司（TeleAI）推出的下一代开源开放权重大语言模型，属于 Xing 系列（原 TeleChat 系列的后继产品）。该模型采用混合专家（MoE）架构，总参数量 29B，每个 token 仅激活 4B 参数，原生支持 262144 上下文长度，采用 Apache-2.0 许可，提供免费文本生成接口。
+- 要点：中国电信 TeleAI 团队开发，Xing（原 TeleChat）系列的后继模型；MoE 架构：29B 总参数，每 token 激活 4B 参数；开源权重，Apache-2.0 许可，兼容 Transformers、vLLM、SGLang 等主流推理框架；262K 上下文窗口，纯文本输入/输出，平台提供免费调用
+- 注意：材料未提供该模型的具体 benchmark 成绩、训练细节与发布日期，相关性能信息无法确认。
 - 链接：[平台页](https://openrouter.ai/xingchen-agi/xing4.0-29b-a4b:free) ｜ <https://huggingface.co/XingChen-AGI/Xing4.0-29B-A4B> ｜ <https://modelslab.com/models/xingchen-agi/xingchen-agi-xing4.0-29b-a4b-free> ｜ <https://huggingface.co/XingChen-AGI/Xing4.0-29B-A4B-GGUF>
 
 ## 🗑️ 移除——无变化
