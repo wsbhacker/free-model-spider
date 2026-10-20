@@ -1,0 +1,297 @@
+{
+  "schema_version": 1,
+  "source": "opencode",
+  "display_name": "OpenCode",
+  "date": "2026-10-20",
+  "baseline_date": "2026-10-19",
+  "total": 14,
+  "added": [
+    {
+      "source": "opencode",
+      "id": "minimax-m3.1-flash-free",
+      "name": "MiniMax M3.1 Flash Free",
+      "context_length": 1000000,
+      "input_modalities": [
+        "text",
+        "image",
+        "video"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "page_url": "https://opencode.ai/v2/docs/console/models/"
+    }
+  ],
+  "removed": [
+    {
+      "source": "opencode",
+      "id": "space-bunny-free",
+      "name": "Space Bunny Free",
+      "context_length": 1048576,
+      "input_modalities": [
+        "text",
+        "image",
+        "video"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "page_url": "https://opencode.ai/v2/docs/console/models/"
+    }
+  ],
+  "unchanged": [
+    {
+      "source": "opencode",
+      "id": "beam-free",
+      "name": "Beam Free",
+      "context_length": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "page_url": "https://opencode.ai/v2/docs/console/models/"
+    },
+    {
+      "source": "opencode",
+      "id": "big-pickle",
+      "name": "Big Pickle",
+      "context_length": 200000,
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "page_url": "https://opencode.ai/v2/docs/console/models/"
+    },
+    {
+      "source": "opencode",
+      "id": "deepseek-v4.1-flash-free",
+      "name": "DeepSeek V4.1 Flash Free",
+      "context_length": 200000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "page_url": "https://opencode.ai/v2/docs/console/models/"
+    },
+    {
+      "source": "opencode",
+      "id": "exo-free",
+      "name": "Exo Free",
+      "context_length": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "page_url": "https://opencode.ai/v2/docs/console/models/"
+    },
+    {
+      "source": "opencode",
+      "id": "glm-5.3-flash-free",
+      "name": "GLM-5.3-Flash Free",
+      "context_length": 200000,
+      "input_modalities": [
+        "text",
+        "image",
+        "video",
+        "pdf"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "page_url": "https://opencode.ai/v2/docs/console/models/"
+    },
+    {
+      "source": "opencode",
+      "id": "jev-1.13-free",
+      "name": "Jev 1.13 Free",
+      "context_length": null,
+      "input_modalities": [],
+      "output_modalities": [],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "page_url": "https://opencode.ai/v2/docs/console/models/"
+    },
+    {
+      "source": "opencode",
+      "id": "ll-alpha-free",
+      "name": "LL Alpha Free",
+      "context_length": 262144,
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "page_url": "https://opencode.ai/v2/docs/console/models/"
+    },
+    {
+      "source": "opencode",
+      "id": "longcat-2.5-preview-free",
+      "name": "LongCat 2.5 Preview Free",
+      "context_length": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "page_url": "https://opencode.ai/v2/docs/console/models/"
+    },
+    {
+      "source": "opencode",
+      "id": "mimo-v2.5-free",
+      "name": "MiMo-V2.5 Free",
+      "context_length": 200000,
+      "input_modalities": [
+        "text",
+        "image",
+        "audio",
+        "video"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "page_url": "https://opencode.ai/v2/docs/console/models/"
+    },
+    {
+      "source": "opencode",
+      "id": "mimo-v2.6-flash-free",
+      "name": "MiMo-V2.6-Flash Free",
+      "context_length": 200000,
+      "input_modalities": [
+        "text",
+        "image",
+        "audio",
+        "video"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "page_url": "https://opencode.ai/v2/docs/console/models/"
+    },
+    {
+      "source": "opencode",
+      "id": "nemotron-3-ultra-free",
+      "name": "Nemotron 3 Ultra Free",
+      "context_length": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "page_url": "https://opencode.ai/v2/docs/console/models/"
+    },
+    {
+      "source": "opencode",
+      "id": "nemotron-3.5-lightning-free",
+      "name": "Nemotron 3.5 Lightning Free",
+      "context_length": 262144,
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "page_url": "https://opencode.ai/v2/docs/console/models/"
+    },
+    {
+      "source": "opencode",
+      "id": "nemotron-3.5-super-vl-free",
+      "name": "Nemotron 3.5 Super VL Free",
+      "context_length": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "page_url": "https://opencode.ai/v2/docs/console/models/"
+    }
+  ]
+}
