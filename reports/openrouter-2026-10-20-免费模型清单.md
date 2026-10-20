@@ -4,10 +4,10 @@
 ## 🆕 新增 (1)
 ### minimax/minimax-m3.1-flash:free
 - 名称：MiniMax: MiniMax M3.1 Flash (free)
-- 介绍：MiniMax M3.1 Flash 是 MiniMax 推出的多模态模型，支持文本、图像、视频输入与文本输出，上下文窗口达 100 万 token，最大输出 524,288 token。相比 M3，其在复杂 agentic 任务、编程与网络安全等多项基准上显著提升。在 OpenRouter 提供免费端点（minimax/minimax-m3.1-flash:free），MiniMax 官方 API 定价为每百万 token 输入 $0.15、输出 $0.60，官方还提供 Anthropic 与 OpenAI 兼容的 SDK/API 访问方式。
-- 要点：100万 token 上下文窗口，最大输出 524,288 token；支持文本、图像、视频多模态输入；较 M3 在 agentic 任务、编码、网络安全基准上显著提升；OpenRouter 提供免费端点，官方 API 定价 $0.15/$0.60 每百万 token；提供 Anthropic 与 OpenAI 兼容的 SDK/API 接入
-- 注意：材料未给出 M3.1 Flash 的参数规模与权重开源情况（仅提及前代 M3 为 428B MoE、23B 激活并已开源），也缺少许可证、训练数据与具体基准分数等信息。
-- 链接：[平台页](https://openrouter.ai/minimax/minimax-m3.1-flash:free) ｜ <https://kilo.ai/models/minimax-minimax-m3-1-flash-free> ｜ <https://agent.minimax.io/tools/m3-1-flash-preview> ｜ <https://commandcode.ai/models/minimax-m3-1-flash-free>
+- 介绍：MiniMax M3.1 Flash 是 MiniMax 推出的多模态模型，支持文本、图像和视频输入、文本输出。相比 M3，它在复杂 agentic 任务、编程与网络安全等多项基准上显著提升。该模型为 428B MoE 架构，在 OpenRouter 上提供免费端点，具备 100 万 token 上下文窗口与 524,288 token 最大输出；编程能力接近 DeepSeek，官方 API 定价约为输入 $0.15/百万、输出 $0.60/百万 token。
+- 要点：多模态输入（文本、图像、视频），文本输出；100 万 token 上下文窗口，最大输出 524,288 token；428B MoE 架构，编程、agentic 任务与网络安全表现较 M3 大幅提升；OpenRouter 提供免费端点（minimax/minimax-m3.1-flash:free），官方 API 定价 $0.15 输入 / $0.60 输出（每百万 token）
+- 注意：模型创建时间戳与部分来源日期存在异常（如 2026 年），发布时间可能不准确；M3.1 Flash 的开放权重情况材料中未明确，仅有 M3 权重的提及。
+- 链接：[平台页](https://openrouter.ai/minimax/minimax-m3.1-flash:free) ｜ <https://kilo.ai/models/minimax-minimax-m3-1-flash-free> ｜ <https://www.marktechpost.com/2026/10/19/minimax-m3-1-flash-release/> ｜ <https://commandcode.ai/models/minimax-m3-1-flash-free>
 
 ## 🗑️ 移除——无变化
 - 无
