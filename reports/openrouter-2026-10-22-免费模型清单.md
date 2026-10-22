@@ -4,10 +4,10 @@
 ## 🆕 新增 (1)
 ### recursive/flint-v1.0:free
 - 名称：Recursive: Flint (free)
-- 介绍：Flint（免费版）是Recursive公司于2026年10月发布的开源权重混合专家（MoE）编码模型，总参数约40B，每个token约2.5B激活参数，上下文长度262144，支持文本输入输出。该模型主要由Recursive的自动研究系统Eureka Machine构建，面向本地笔记本上的快速智能体式编码，被视为AI自我改进（递归自我改进，RSI）路线的早期成果。
-- 要点：MoE架构，约40B总参数、2.5B激活参数；由Eureka Machine自动研究系统构建，主打递归自我改进（RSI）；面向本地硬件上的快速agentic编码，开源权重且免费；2026年10月19日发布，上下文长度262144，纯文本输入输出
-- 注意：材料未提供模型性能基准、训练数据、具体开源许可等细节；描述中的'suited...'信息在元数据中被截断。
-- 链接：[平台页](https://openrouter.ai/recursive/flint-v1.0:free) ｜ <https://recursive.com/updates/introducing-recursive-flint> ｜ <https://techcrunch.com/2026/10/21/recursive-launches-flint-a-laptop-coding-model-it-says-was-largely-built-by-ai/> ｜ <https://huggingface.co/RecursiveSI/flint>
+- 介绍：Flint 是 Recursive 推出的开源混合专家（MoE）编码模型，总参数约 400 亿，每个 token 激活约 25 亿，主要面向笔记本本地运行的快速智能体编码。该模型由 Recursive 的自动化研究系统 Eureka Machine 大量自主构建，被视为 AI 自我改进（递归自我改进，RSI）路线的早期成果。免费版于 2026 年 10 月 19 日发布，支持 262,144 上下文长度，仅支持文本输入与输出。
+- 要点：开源权重 MoE 架构，总参数 39.8B，每 token 激活约 2.5B，适合本地笔记本运行；由 Recursive 自动研究系统 Eureka Machine 大量自主构建，用于编码智能体；免费版（flint-v1.0:free）于 2026 年 10 月 19 日发布，上下文长度 262144；文本输入输出，目标是快速的本地智能体编码
+- 注意：材料未提供模型在具体基准上的性能数据、架构细节或训练方法的更多描述；'suited...' 的官方描述被截断，未能完整呈现适用场景。
+- 链接：[平台页](https://openrouter.ai/recursive/flint-v1.0:free) ｜ <https://techcrunch.com/2026/10/21/recursive-launches-flint-a-laptop-coding-model-it-says-was-largely-built-by-ai/> ｜ <https://recursive.com/updates/introducing-recursive-flint> ｜ <https://huggingface.co/RecursiveSI/flint>
 
 ## 🗑️ 移除——无变化
 - 无
