@@ -132,3 +132,33 @@ def test_yaml_syntax_error_wrapped_as_value_error_with_path(tmp_path):
     path = write_yaml(tmp_path, "stale_days: 45\nvendors: [unclosed\n")
     with pytest.raises(ValueError, match=re.escape(str(path))):
         load_config(path)
+
+
+def screens_to(line, model_id: str) -> bool:
+    """目录门铃粗筛语义：match 任一 regex（re.search）命中，且 exclude 无子串命中。"""
+    return any(re.search(p, model_id) for p in line.match) and not any(
+        w in model_id for w in line.exclude
+    )
+
+
+def test_real_flash_tier_ids_screen_to_sub_not_flagship():
+    """实测模型 id 必须落入次旗舰线：flagship exclude 拦下、sub match 接住。"""
+    config = load_config(REPO_ROOT / "data" / "vendor_releases.yml")
+    vendors = {v.id: v for v in config.vendors}
+    cases = [
+        ("moonshot", "kimi-k3.1-pro-highspeed"),
+        ("moonshot", "kimi-k2-flash"),
+        ("deepseek", "deepseek-v4-flash"),
+    ]
+    for vendor_id, model_id in cases:
+        lines = {line.key: line for line in vendors[vendor_id].lines}
+        assert not screens_to(lines["flagship"], model_id), (
+            vendor_id,
+            model_id,
+            "不应命中 flagship",
+        )
+        assert screens_to(lines["sub"], model_id), (
+            vendor_id,
+            model_id,
+            "应命中 sub",
+        )

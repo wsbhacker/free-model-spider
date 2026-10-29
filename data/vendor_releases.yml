@@ -91,7 +91,7 @@ vendors:
         exclude: [flash, coder, vision, image, video, audio, embed, guard, translate]
       - key: sub
         name: DeepSeek Flash
-        match: ['deepseek-[\d.]*-?flash']
+        match: ['deepseek-(v[\d.]+|[\d.]+)-?flash']
         exclude: [coder, vision, image, video, audio, embed, guard, translate]
   - id: qwen
     name: 阿里 Qwen
@@ -117,7 +117,7 @@ vendors:
         exclude: [flash, turbo, highspeed, image, video, audio, embed, guard, translate, vl, vision]
       - key: sub
         name: Kimi K Flash/轻量
-        match: ['kimi-k\d[\d.]*-?(flash|turbo|lite|mini|highspeed)']
+        match: ['kimi-k\d[\d.]*-.*-?(flash|turbo|lite|mini|highspeed)']
         exclude: [image, video, audio, embed, guard, translate, vl, vision]
   - id: zhipu
     name: 智谱 AI
