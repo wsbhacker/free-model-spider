@@ -56,6 +56,21 @@ def test_send_alert_swallows_transport_error(monkeypatch):
     assert send_alert(httpx.Client(), "t", "c", sleep=NO_SLEEP) is False  # 不抛
 
 
+@respx.mock
+def test_send_alert_log_redacts_webhook_url(monkeypatch, capsys):
+    """异常日志只打类型名与状态码：webhook URL（含 token）永不进日志。"""
+    secret_url = "https://hook.example/alert?token=SECRET123"
+    monkeypatch.setenv("ALERT_WEBHOOK_URL", secret_url)
+    respx.post(secret_url).mock(return_value=httpx.Response(500))
+    assert send_alert(httpx.Client(), "t", "c", sleep=NO_SLEEP) is False
+    out = capsys.readouterr().out
+    assert "SECRET123" not in out  # token 不得泄漏
+    assert "https://hook.example/alert" not in out  # URL 本体也不得泄漏
+    assert "[alert] 告警发送失败" in out  # 失败不能静默
+    assert "HTTPStatusError" in out  # 只打印异常类型名
+    assert "500" in out  # 并附 HTTP 状态码
+
+
 def test_run_link_empty_outside_actions(monkeypatch):
     for var in ("GITHUB_ACTIONS", "GITHUB_SERVER_URL", "GITHUB_REPOSITORY", "GITHUB_RUN_ID"):
         monkeypatch.delenv(var, raising=False)

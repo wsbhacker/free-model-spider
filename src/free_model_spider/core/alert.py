@@ -35,7 +35,11 @@ def send_alert(
         )
         return True
     except Exception as exc:  # noqa: BLE001 —— fire-and-forget：告警失败绝不能影响主流程
-        print(f"[alert] 告警发送失败：{exc!r}")
+        # 脱敏：异常消息/args 内嵌完整 webhook URL（含 token），永不进日志；
+        # 只打印异常类型名与（若存在）HTTP 状态码。
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+        detail = f" HTTP {status}" if status is not None else ""
+        print(f"[alert] 告警发送失败：{type(exc).__name__}{detail}")
         return False
 
 
