@@ -39,6 +39,19 @@ jobs:
           LLM_API_BASE: ${{ vars.LLM_API_BASE }}
           LLM_MODEL: ${{ vars.LLM_MODEL }}
           LLM_FALLBACK_MODELS: ${{ vars.LLM_FALLBACK_MODELS }}
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           uv run fms run
+
+      - name: Run vendor freshness report
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
+          LLM_API_BASE: ${{ vars.LLM_API_BASE }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          LLM_FALLBACK_MODELS: ${{ vars.LLM_FALLBACK_MODELS }}
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          uv run fms vendors

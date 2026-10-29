@@ -55,6 +55,8 @@ Markdown 日报，由 GitHub Actions 每日北京时间 08:30 自动运行并提
 
 - GitHub Actions：在仓库 Settings → Secrets and variables → Actions 配置
   `LLM_API_KEY`（推荐，OpenRouter 免费 key 即可）与 `BRAVE_API_KEY`（可选）。
+  新鲜度日报（厂商发布间隔）由同一定时任务生成；可选配置 Secret
+  `ALERT_WEBHOOK_URL`，配置后故障会推送到你的 webhook（body 为 {title, content} JSON）。
 - 本地运行：
 
   ```bash
