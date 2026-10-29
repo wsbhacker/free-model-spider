@@ -13,6 +13,7 @@ from free_model_spider.core.vendor_config import (
     VendorConfig,
     VendorReleasesConfig,
 )
+from free_model_spider.core.vendor_judge import Judgment
 from free_model_spider.net import request_with_retries
 
 
@@ -226,3 +227,148 @@ def detect_review(
         if vendor_reasons:
             reasons[vendor.id] = vendor_reasons
     return reasons
+
+
+# --------------------------------------------------------------------------
+# 裁决编排、防倒退与 pending 状态机（Task 5）
+# --------------------------------------------------------------------------
+
+PENDING_FREEZE_DAYS = 7
+_REASON_MISSING_JUDGMENT = "裁决缺失（提取/校验/确认失败），保留原基线转 pending"
+_REASON_FREEZE = "pending 连续 7 天未决，冻结为 stale-baseline"
+
+
+def _judgment_url(judgment: Judgment, fallback: str | None) -> str | None:
+    """取裁决首个来源 URL；裁决未给出时保留原值。"""
+    return judgment.source_urls[0] if judgment.source_urls else fallback
+
+
+def apply_judgment(
+    state: LineState, judgment: Judgment | None, today: str
+) -> LineState:
+    """将单条线裁决合入线状态（纯函数，返回新对象，原 state 不变）。
+
+    - judgment 缺失或事实字段不全（提取失败/校验不过/确认失败的统一入口）→
+      原基线保留，status='pending' 且 pending_days+=1，reason 记来源环节；
+    - release_date 一律 ISO 字符串字典序比较：前进 → 整体更新 model/url/
+      release_date；同日不同名 → 命名修正（仅 model/url）；同日同名 → 复核一致
+      （仅重臂）；回退 → 防倒退拒绝（原值保留，转 pending 计数，满 7 天仍会冻结）；
+    - state.release_date 为 None（首日确认）→ 有效裁决直接写入。
+    所有成功分支 status='ok'、pending_days=0、last_verified=today。
+    """
+    if judgment is None or judgment.model is None or judgment.release_date is None:
+        return state.model_copy(
+            update={
+                "status": "pending",
+                "reason": _REASON_MISSING_JUDGMENT,
+                "pending_days": state.pending_days + 1,
+            }
+        )
+    if state.release_date is None:
+        return state.model_copy(
+            update={
+                "model": judgment.model,
+                "release_date": judgment.release_date,
+                "url": _judgment_url(judgment, None),
+                "status": "ok",
+                "reason": "首日确认",
+                "pending_days": 0,
+                "last_verified": today,
+            }
+        )
+    if judgment.release_date > state.release_date:
+        return state.model_copy(
+            update={
+                "model": judgment.model,
+                "release_date": judgment.release_date,
+                "url": _judgment_url(judgment, state.url),
+                "status": "ok",
+                "reason": f"日期前进 {state.release_date} → {judgment.release_date}",
+                "pending_days": 0,
+                "last_verified": today,
+            }
+        )
+    if judgment.release_date == state.release_date:
+        if judgment.model != state.model:
+            return state.model_copy(
+                update={
+                    "model": judgment.model,
+                    "url": _judgment_url(judgment, state.url),
+                    "status": "ok",
+                    "reason": f"同日命名修正 {state.model} → {judgment.model}",
+                    "pending_days": 0,
+                    "last_verified": today,
+                }
+            )
+        return state.model_copy(
+            update={
+                "status": "ok",
+                "reason": "同日复核一致，重臂",
+                "pending_days": 0,
+                "last_verified": today,
+            }
+        )
+    # judgment.release_date < state.release_date：防倒退拒绝，原基线保留
+    return state.model_copy(
+        update={
+            "status": "pending",
+            "reason": "防倒退拒绝",
+            "pending_days": state.pending_days + 1,
+        }
+    )
+
+
+def finalize_state(state: LineState, today: str) -> LineState:
+    """复核日收尾（纯函数）：ok 线重臂、pending 满 7 天冻结，其余原样。
+
+    - status='pending' 且 pending_days>=7 → 冻结为 'stale-baseline'
+      （保留 pending_days 供审计，条目此后由 update_seen 收入 seen）；
+    - status='ok' → last_verified=today（stale 触发的重臂出口）；
+    - status='stale-baseline' → 原样保留（冻结态不被收尾改动）；
+    - pending 未满 7 天 → 原样保留（pending_days 只在 apply_judgment 里推进）。
+    """
+    if state.status == "pending" and state.pending_days >= PENDING_FREEZE_DAYS:
+        return state.model_copy(
+            update={"status": "stale-baseline", "reason": _REASON_FREEZE}
+        )
+    if state.status == "ok":
+        return state.model_copy(update={"last_verified": today})
+    return state.model_copy()
+
+
+def update_seen(
+    vendor: VendorConfig,
+    state: VendorState,
+    entries: list[str],
+    labels: dict[str, tuple[str, str]],
+) -> list[str]:
+    """更新已见目录 id 集合（纯函数，返回新列表，不改 state）。
+
+    新 seen = 旧 seen + 粗筛候选（内部复用 screen_new_entries，casefold 后）中
+    "有终态结论"的条目：
+    - label 为 'ignore' → 终态（衍生/挂靠模型，不再重触发）；
+    - label 为线 key → 该线当日裁决结束 status != 'pending'（ok 或冻结）才终态；
+    - label 为 'pending'（归类失败）或 labels 缺键 → 无终态结论，不入 seen，
+      次日重新触发。
+    """
+    candidates = screen_new_entries(vendor, state, entries)
+    line_status = {line.key: line.status for line in state.lines}
+    seen: set[str] = set()
+    result: list[str] = []
+    for entry_id in state.seen_directory_ids:
+        folded = entry_id.casefold()
+        if folded not in seen:
+            seen.add(folded)
+            result.append(entry_id)
+    for entry_id in candidates:
+        label = labels.get(entry_id)
+        if label is None:
+            continue
+        category = label[0]
+        terminal = category == "ignore" or (
+            category in line_status and line_status[category] != "pending"
+        )
+        if terminal and entry_id.casefold() not in seen:
+            seen.add(entry_id.casefold())
+            result.append(entry_id)
+    return result

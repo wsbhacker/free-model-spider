@@ -12,19 +12,23 @@ from free_model_spider.core.vendor_config import (
     VendorConfig,
     VendorReleasesConfig,
 )
+from free_model_spider.core.vendor_judge import Judgment
 from free_model_spider.core.vendor_stats import (
     Baseline,
     LineState,
     VendorState,
+    apply_judgment,
     baseline_path,
     collect_directory_entries,
     days_since,
     detect_review,
     empty_baseline,
+    finalize_state,
     find_latest_baseline,
     load_baseline,
     save_baseline,
     screen_new_entries,
+    update_seen,
 )
 
 
@@ -558,3 +562,305 @@ def test_detect_review_new_entry_and_stale_together():
     )
     reasons = detect_review(config, baseline, {"openai": ["openai/gpt-5.2"]}, "2026-10-29")
     assert reasons == {"openai": ["new-entry", "stale"]}
+
+
+# --------------------------------------------------------------------------
+# Task 5: 裁决编排、防倒退与 pending 状态机
+# --------------------------------------------------------------------------
+
+
+def make_judgment(
+    model: str = "gpt-5.2",
+    release_date: str = "2026-10-27",
+    url: str = "https://openai.com/blog/gpt-5-2",
+) -> Judgment:
+    return Judgment(
+        model=model,
+        release_date=release_date,
+        source_urls=[url],
+        evidence=[f"官方公告：发布于 {release_date}"],
+        reason="",
+    )
+
+
+def test_apply_judgment_forward_date_updates_baseline():
+    """日期前进：整体更新 model/url/release_date 并重臂。"""
+    state = LineState(
+        key="flagship",
+        model="gpt-5.1",
+        release_date="2026-10-26",
+        url="https://openai.com/blog/gpt-5-1",
+        last_verified="2026-10-28",
+        status="ok",
+    )
+    new = apply_judgment(state, make_judgment(), "2026-10-29")
+    assert new.model == "gpt-5.2"
+    assert new.release_date == "2026-10-27"
+    assert new.url == "https://openai.com/blog/gpt-5-2"
+    assert new.status == "ok"
+    assert new.pending_days == 0
+    assert new.last_verified == "2026-10-29"
+    # 纯函数：原对象不变
+    assert state.model == "gpt-5.1"
+    assert state.release_date == "2026-10-26"
+    assert state.url == "https://openai.com/blog/gpt-5-1"
+    assert state.last_verified == "2026-10-28"
+
+
+def test_apply_judgment_same_day_rename_updates_model_and_url_only():
+    """同日不同名：命名修正，仅更新 model/url，release_date 不动。"""
+    state = LineState(
+        key="flagship",
+        model="gpt-5.1-preview",
+        release_date="2026-10-26",
+        url="https://openai.com/blog/gpt-5-1",
+        status="pending",
+        pending_days=2,
+        last_verified="2026-10-20",
+    )
+    new = apply_judgment(
+        state,
+        make_judgment(
+            model="gpt-5.1",
+            release_date="2026-10-26",
+            url="https://openai.com/blog/gpt-5-1-final",
+        ),
+        "2026-10-29",
+    )
+    assert new.model == "gpt-5.1"
+    assert new.release_date == "2026-10-26"
+    assert new.url == "https://openai.com/blog/gpt-5-1-final"
+    assert new.status == "ok"
+    assert new.pending_days == 0
+    assert new.last_verified == "2026-10-29"
+
+
+def test_apply_judgment_same_day_same_model_rearms_only():
+    """同日同名：复核一致，不改基线值，仅重臂清 pending。"""
+    state = LineState(
+        key="flagship",
+        model="gpt-5.1",
+        release_date="2026-10-26",
+        url="https://openai.com/blog/gpt-5-1",
+        status="pending",
+        pending_days=3,
+    )
+    new = apply_judgment(
+        state,
+        make_judgment(model="gpt-5.1", release_date="2026-10-26"),
+        "2026-10-29",
+    )
+    assert new.model == "gpt-5.1"
+    assert new.release_date == "2026-10-26"
+    assert new.url == "https://openai.com/blog/gpt-5-1"
+    assert new.status == "ok"
+    assert new.pending_days == 0
+    assert new.last_verified == "2026-10-29"
+
+
+def test_apply_judgment_rejects_backdated_release():
+    """日期回退：拒绝（原值保留），转 pending 计数，reason 固定'防倒退拒绝'。"""
+    state = LineState(
+        key="flagship",
+        model="gpt-5.2",
+        release_date="2026-10-27",
+        url="https://openai.com/blog/gpt-5-2",
+        last_verified="2026-10-28",
+        status="ok",
+    )
+    new = apply_judgment(
+        state, make_judgment(model="gpt-5.1", release_date="2026-10-20"), "2026-10-29"
+    )
+    assert new.model == "gpt-5.2"
+    assert new.release_date == "2026-10-27"
+    assert new.url == "https://openai.com/blog/gpt-5-2"
+    assert new.status == "pending"
+    assert new.reason == "防倒退拒绝"
+    assert new.pending_days == 1  # 拒绝日计入 pending，7 天未决仍会冻结
+    assert new.last_verified == "2026-10-28"
+
+
+def test_apply_judgment_first_day_writes_judgment_directly():
+    """首日确认：state.release_date 为 None，有效裁决直接写入。"""
+    state = LineState(key="flagship", status="pending", pending_days=4)
+    new = apply_judgment(state, make_judgment(), "2026-10-29")
+    assert new.model == "gpt-5.2"
+    assert new.release_date == "2026-10-27"
+    assert new.url == "https://openai.com/blog/gpt-5-2"
+    assert new.status == "ok"
+    assert new.pending_days == 0
+    assert new.last_verified == "2026-10-29"
+
+
+def test_apply_judgment_none_keeps_baseline_and_counts_pending():
+    """judgment=None（提取失败/校验不过/确认失败）：原基线保留，pending_days+1。"""
+    state = LineState(
+        key="flagship",
+        model="gpt-5.1",
+        release_date="2026-10-26",
+        url="https://openai.com/blog/gpt-5-1",
+        last_verified="2026-10-28",
+        status="ok",
+    )
+    new = apply_judgment(state, None, "2026-10-29")
+    assert new.model == "gpt-5.1"
+    assert new.release_date == "2026-10-26"
+    assert new.url == "https://openai.com/blog/gpt-5-1"
+    assert new.status == "pending"
+    assert new.pending_days == 1
+    assert new.last_verified == "2026-10-28"
+    assert new.reason  # 记录来源环节（提取/校验/确认失败降级）
+    # 空线收到 None 同样计数：从未确认的线继续 pending
+    fresh = apply_judgment(LineState(key="sub"), None, "2026-10-29")
+    assert fresh.model is None
+    assert fresh.status == "pending"
+    assert fresh.pending_days == 1
+
+
+def test_apply_judgment_partial_fields_treated_as_missing():
+    """事实字段不全的裁决按缺失处理（防御：与 extract_line 的 None 契约一致）。"""
+    state = LineState(key="flagship")
+    new = apply_judgment(
+        state, Judgment(model="gpt-5.2", release_date=None), "2026-10-29"
+    )
+    assert new.model is None
+    assert new.status == "pending"
+    assert new.pending_days == 1
+
+
+def test_finalize_state_rearms_ok_line():
+    """复核收尾：ok 线刷新 last_verified（重臂），status 不变。"""
+    state = LineState(
+        key="flagship",
+        model="gpt-5.1",
+        release_date="2026-10-26",
+        url="https://openai.com/blog/gpt-5-1",
+        last_verified="2026-08-10",
+        status="ok",
+    )
+    new = finalize_state(state, "2026-10-29")
+    assert new.status == "ok"
+    assert new.last_verified == "2026-10-29"
+    assert new.model == "gpt-5.1"
+    assert state.last_verified == "2026-08-10"  # 纯函数
+
+
+def test_finalize_state_freezes_pending_after_seven_days():
+    """pending 满 7 天冻结为 stale-baseline；未满 7 天保持 pending 原样。"""
+    due = finalize_state(
+        LineState(key="flagship", status="pending", pending_days=7, reason="裁决缺失"),
+        "2026-10-29",
+    )
+    assert due.status == "stale-baseline"
+    assert due.pending_days == 7  # 冻结保留计数供审计
+    assert due.reason
+    overdue = finalize_state(
+        LineState(key="flagship", status="pending", pending_days=9), "2026-10-29"
+    )
+    assert overdue.status == "stale-baseline"
+    short = finalize_state(
+        LineState(key="flagship", status="pending", pending_days=6), "2026-10-29"
+    )
+    assert short.status == "pending"
+    assert short.pending_days == 6
+    assert short.last_verified is None  # 未冻结不刷 last_verified
+
+
+def test_finalize_state_keeps_frozen_line_untouched():
+    """已冻结线收尾完全不变（保持冻结态，不刷新 last_verified）。"""
+    state = LineState(
+        key="sub",
+        status="stale-baseline",
+        reason="pending 连续 7 天未决，冻结",
+        pending_days=60,
+        last_verified="2026-08-01",
+    )
+    assert finalize_state(state, "2026-10-29") == state
+
+
+def test_update_seen_only_terminal_entries_enter_seen():
+    """归类为线且该线裁决结束（ok）的条目入 seen；pending 线与缺 label 的条目不入。"""
+    config = make_config()
+    openai = config.vendors[0]
+    state = VendorState(
+        id="openai",
+        seen_directory_ids=["openai/gpt-5.0"],
+        lines=[
+            LineState(
+                key="flagship",
+                model="gpt-5.1",
+                release_date="2026-10-26",
+                status="ok",
+            ),
+            LineState(key="sub", status="pending", pending_days=1),
+        ],
+    )
+    new_seen = update_seen(
+        openai,
+        state,
+        [
+            "openai/gpt-5.2",  # flagship 线，当日裁决 ok → 入 seen
+            "openai/gpt-5.2-mini",  # sub 线仍 pending → 不入（次日重触发）
+            "openai/gpt-5.3-pro",  # 归类失败（pending）→ 不入
+            "openai/gpt-5.4",  # labels 缺键 → 无终态结论，不入
+        ],
+        {
+            "openai/gpt-5.2": ("flagship", "主线新模型"),
+            "openai/gpt-5.2-mini": ("sub", "次旗舰候选"),
+            "openai/gpt-5.3-pro": ("pending", ""),
+        },
+    )
+    assert "openai/gpt-5.0" in new_seen  # 旧 seen 保留
+    assert "openai/gpt-5.2" in new_seen
+    assert "openai/gpt-5.2-mini" not in new_seen
+    assert "openai/gpt-5.3-pro" not in new_seen
+    assert "openai/gpt-5.4" not in new_seen
+    assert state.seen_directory_ids == ["openai/gpt-5.0"]  # 纯函数：原 state 不变
+
+
+def test_update_seen_ignore_entry_enters_seen():
+    """归类 ignore 即终态：即使两条线都 pending，条目也入 seen。"""
+    config = make_config()
+    openai = config.vendors[0]
+    state = VendorState(
+        id="openai",
+        lines=[
+            LineState(key="flagship", status="pending", pending_days=1),
+            LineState(key="sub", status="pending", pending_days=1),
+        ],
+    )
+    new_seen = update_seen(
+        openai,
+        state,
+        ["openai/gpt-5.2-transcribe"],
+        {"openai/gpt-5.2-transcribe": ("ignore", "语音转写专用，不属于任何线")},
+    )
+    assert new_seen == ["openai/gpt-5.2-transcribe"]
+
+
+def test_update_seen_frozen_line_entries_enter_seen():
+    """冻结（stale-baseline != pending）线的条目入 seen，避免每日重触发烧配额。"""
+    config = make_config()
+    openai = config.vendors[0]
+    state = VendorState(
+        id="openai",
+        lines=[
+            LineState(
+                key="flagship",
+                status="stale-baseline",
+                reason="pending 连续 7 天未决，冻结",
+                pending_days=7,
+            ),
+            LineState(key="sub", status="pending", pending_days=2),
+        ],
+    )
+    new_seen = update_seen(
+        openai,
+        state,
+        ["openai/gpt-5.2", "openai/gpt-5.2-mini"],
+        {
+            "openai/gpt-5.2": ("flagship", ""),
+            "openai/gpt-5.2-mini": ("sub", ""),
+        },
+    )
+    assert new_seen == ["openai/gpt-5.2"]
