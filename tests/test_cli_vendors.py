@@ -1,0 +1,438 @@
+"""fms vendors 子命令编排测试：stub LLM/search + respx 目录 API（brief Step 1 五类场景）。"""
+
+import json
+import subprocess
+from pathlib import Path
+
+import httpx
+import respx
+
+from free_model_spider.cli import main
+from free_model_spider.core.vendor_report import FMS_VENDORS_START
+from free_model_spider.core.vendor_stats import (
+    Baseline,
+    LineState,
+    VendorState,
+    baseline_path,
+    load_baseline,
+    save_baseline,
+)
+from free_model_spider.search.base import SearchProvider, SearchResult
+
+OPENROUTER_URL = "https://openrouter.ai/api/v1/models"
+MODELS_DEV_URL = "https://models.dev/api.json"
+PAGE_URL = "https://z.ai/blog/glm-5-4"
+
+CONFIG_YAML = """\
+stale_days: 45
+vendors:
+  - id: zai
+    name: 智谱 AI
+    official_domains: [z.ai]
+    directory_slugs: { openrouter: [z-ai], modelsdev: [zai] }
+    lines:
+      - key: flagship
+        name: GLM 主线
+        match: ['glm-\\d']
+        exclude: [flash, air]
+      - key: sub
+        name: GLM Flash
+        match: ['glm-\\d[\\d.]*-?(flash|flashx)']
+  - id: openai
+    name: OpenAI
+    official_domains: [openai.com]
+    directory_slugs: { openrouter: [openai] }
+    lines:
+      - key: flagship
+        name: GPT 主线
+        match: ['gpt-\\d']
+"""
+
+CLASSIFY_FLAGSHIP_JSON = '{"category": "flagship", "reason": "主线新模型"}'
+IGNORE_JSON = '{"category": "ignore", "reason": "量化挂靠变体"}'
+EXTRACT_JSON = (
+    '{"model": "GLM-5.4", "release_date": "2026-10-20", '
+    '"source_urls": ["https://z.ai/blog/glm-5-4"], '
+    '"evidence": ["GLM-5.4 于 2026-10-20 正式发布 https://z.ai/blog/glm-5-4"], '
+    '"reason": ""}'
+)
+CONFIRM_JSON = (
+    '{"model": "GLM-5.4", "release_date": "2026-10-20", '
+    '"evidence": ["页面原文：GLM-5.4 于 2026-10-20 正式发布"], "reason": ""}'
+)
+CONFIRM_NULL_JSON = (
+    '{"model": "GLM-5.4", "release_date": null, "evidence": [], '
+    '"reason": "页面原文未出现发布日期"}'
+)
+INSUFFICIENT_JSON = (
+    '{"model": null, "release_date": null, "source_urls": [], "evidence": [], '
+    '"reason": "搜索结果未提及发布日期"}'
+)
+SEARCH_RESULTS = [
+    SearchResult(title="智谱发布 GLM-5.4", url=PAGE_URL, snippet="GLM-5.4 于 2026-10-20 正式发布。")
+]
+
+REPORT_MD = "reports/各大厂商大模型新鲜度-2026-10-29.md"
+REPORT_JSON = "reports/各大厂商大模型新鲜度-2026-10-29.json"
+
+
+def _dir_payload(ids: list[str]) -> dict:
+    return {"data": [{"id": i} for i in ids]}
+
+
+FULL_DIR = _dir_payload(["z-ai/glm-5.4", "z-ai/glm-5.5-4bit", "openai/gpt-6.1"])
+EMPTY_DIR: dict = {}
+
+
+class FakeSearch(SearchProvider):
+    name = "fake"
+
+    def __init__(self, results=None):
+        self.results = results or []
+        self.queries: list[str] = []
+
+    def search(self, query, count=5):
+        self.queries.append(query)
+        return self.results
+
+
+class FakeLLM:
+    def __init__(self, replies: list[str]):
+        self.replies = list(replies)
+        self.calls: list[tuple[str, str]] = []
+
+    def complete(self, system, user):
+        self.calls.append((system, user))
+        return self.replies.pop(0)
+
+
+def _git(repo: Path, *args: str):
+    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
+
+
+def _init_repo(repo: Path):
+    repo.mkdir(parents=True, exist_ok=True)
+    _git(repo, "init")
+    _git(repo, "config", "user.name", "tester")
+    _git(repo, "config", "user.email", "t@example.com")
+    (repo / "README.md").write_text("# free-model-spider\n", encoding="utf-8")
+    (repo / "data").mkdir()
+    (repo / "data" / "vendor_releases.yml").write_text(CONFIG_YAML, encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "init")
+
+
+def _clean_env(monkeypatch):
+    for var in ("GITHUB_ACTIONS", "LLM_API_KEY", "BRAVE_API_KEY", "ALERT_WEBHOOK_URL"):
+        monkeypatch.delenv(var, raising=False)
+
+
+def _stub_none(monkeypatch):
+    monkeypatch.setattr("free_model_spider.cli.build_llm_client", lambda client: None)
+    monkeypatch.setattr("free_model_spider.cli.build_search_provider", lambda client: None)
+
+
+def _stub(monkeypatch, llm, search):
+    monkeypatch.setattr("free_model_spider.cli.build_llm_client", lambda client: llm)
+    monkeypatch.setattr("free_model_spider.cli.build_search_provider", lambda client: search)
+
+
+def _mock_dirs(openrouter_payload, modelsdev_payload):
+    respx.get(OPENROUTER_URL).mock(
+        return_value=httpx.Response(200, json=openrouter_payload)
+    )
+    respx.get(MODELS_DEV_URL).mock(
+        return_value=httpx.Response(200, json=modelsdev_payload)
+    )
+
+
+def make_event_baseline() -> Baseline:
+    """事件日前一日基线：zai 旗舰 ok（旧版本）、sub 空 pending；openai ok 且条目已见。"""
+    return Baseline(
+        date="2026-10-28",
+        vendors=[
+            VendorState(
+                id="zai",
+                seen_directory_ids=["z-ai/glm-5.3", "zai:glm-5.3-flash"],
+                lines=[
+                    LineState(
+                        key="flagship", model="GLM-5.3", release_date="2026-09-24",
+                        url="https://z.ai/blog/glm-5-3",
+                        last_verified="2026-10-28", status="ok",
+                    ),
+                    LineState(key="sub"),
+                ],
+            ),
+            VendorState(
+                id="openai",
+                seen_directory_ids=["openai/gpt-6.1"],
+                lines=[
+                    LineState(
+                        key="flagship", model="GPT-6.1", release_date="2026-10-20",
+                        url="https://openai.com/gpt-6-1",
+                        last_verified="2026-10-28", status="ok",
+                    ),
+                ],
+            ),
+        ],
+    )
+
+
+# 事件日 stub 应答序列：classify glm-5.4 → flagship；classify 4bit 挂靠 → ignore；
+# extract flagship → 有效；confirm → 一致；extract sub（无新条目）→ 材料不足。
+EVENT_REPLIES = [
+    CLASSIFY_FLAGSHIP_JSON,
+    IGNORE_JSON,
+    EXTRACT_JSON,
+    CONFIRM_JSON,
+    INSUFFICIENT_JSON,
+]
+
+
+def _event_setup(repo: Path, monkeypatch, replies: list[str],
+                 baseline: Baseline | None = None) -> FakeLLM:
+    _init_repo(repo)
+    monkeypatch.chdir(repo)
+    _clean_env(monkeypatch)
+    monkeypatch.setattr("time.sleep", lambda _s: None)  # 跳过 search 1.1s 限速
+    llm = FakeLLM(replies)
+    _stub(monkeypatch, llm, FakeSearch(SEARCH_RESULTS))
+    _mock_dirs(FULL_DIR, {})
+    respx.get(PAGE_URL).mock(  # 二次确认抓取的官方公告页
+        return_value=httpx.Response(200, text="智谱正式发布 GLM-5.4：于 2026-10-20 正式发布。")
+    )
+    save_baseline(baseline or make_event_baseline(),
+                  baseline_path(Path("data"), "2026-10-28"))
+    return llm
+
+
+# ---------- 场景①：首日 + 无 LLM/search → 空表 + 基线全 pending ----------
+
+
+@respx.mock
+def test_first_day_without_keys_produces_empty_report_and_pending_baseline(
+    tmp_path, monkeypatch
+):
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    monkeypatch.chdir(repo)
+    _clean_env(monkeypatch)
+    monkeypatch.setattr("time.sleep", lambda _s: None)
+    _stub_none(monkeypatch)
+    _mock_dirs(FULL_DIR, {"zai": {"models": {"glm-5.4-flash": {}}}})
+
+    assert main(["vendors", "--date", "2026-10-29", "--no-commit"]) == 0
+
+    md = Path(REPORT_MD).read_text("utf-8")
+    assert "| 厂商 | 模型 | 发布日 | 天数 |" in md
+    assert "|---|---|---|---|" in md
+    assert "GLM" not in md  # 空表：无任何模型行
+    data = json.loads(Path(REPORT_JSON).read_text("utf-8"))
+    assert data["models"] == []
+    readme = Path("README.md").read_text("utf-8")
+    assert FMS_VENDORS_START in readme
+    assert "### 厂商新鲜度榜" in readme
+    assert "> 更新于 2026-10-29" in readme
+    saved = load_baseline(baseline_path(Path("data"), "2026-10-29"))
+    assert [v.id for v in saved.vendors] == ["zai", "openai"]
+    for vendor in saved.vendors:
+        for line in vendor.lines:
+            assert line.status == "pending"
+            assert line.model is None
+            assert line.pending_days == 1  # 降级裁决走了 apply_judgment(None) 计数
+
+
+# ---------- 场景②：事件日 → classify/extract/confirm 全通 → 基线更新 + 报告含行 ----------
+
+
+@respx.mock
+def test_event_day_updates_baseline_report_and_corroboration(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    llm = _event_setup(repo, monkeypatch, EVENT_REPLIES)
+    commits: list = []
+    monkeypatch.setattr(
+        "free_model_spider.cli._git_commit", lambda *a, **k: commits.append((a, k))
+    )
+
+    assert main(["vendors", "--date", "2026-10-29", "--no-commit"]) == 0
+    assert commits == []  # --no-commit 下不调 git
+    assert len(llm.calls) == 5  # 2 classify + 1 extract + 1 confirm + 1 extract(sub)
+
+    md = Path(REPORT_MD).read_text("utf-8")
+    assert (
+        "| 智谱 AI | [GLM-5.4](https://z.ai/blog/glm-5-4) "
+        "[⧉](https://openrouter.ai/z-ai/glm-5.4) | 2026-10-20 | 9 |" in md
+    )
+    assert "| OpenAI | [GPT-6.1](https://openai.com/gpt-6-1) | 2026-10-20 | 9 |" in md
+    data = json.loads(Path(REPORT_JSON).read_text("utf-8"))
+    assert data["models"][0] == {
+        "vendor": "智谱 AI", "name": "GLM-5.4",
+        "url": PAGE_URL, "release_date": "2026-10-20",
+    }
+    readme = Path("README.md").read_text("utf-8")
+    assert "[⧉](https://openrouter.ai/z-ai/glm-5.4)" in readme
+
+    saved = load_baseline(baseline_path(Path("data"), "2026-10-29"))
+    zai = next(v for v in saved.vendors if v.id == "zai")
+    flagship, sub = zai.lines[0], zai.lines[1]
+    assert flagship.model == "GLM-5.4"
+    assert flagship.release_date == "2026-10-20"
+    assert flagship.url == PAGE_URL
+    assert flagship.status == "ok"
+    assert flagship.reason.startswith("日期前进 2026-09-24 → 2026-10-20")
+    assert "ignore 审计：z-ai/glm-5.5-4bit（量化挂靠变体）" in flagship.reason
+    assert "z-ai/glm-5.4" in zai.seen_directory_ids  # 终态条目入 seen
+    assert "z-ai/glm-5.5-4bit" in zai.seen_directory_ids  # ignore 亦终态
+    assert sub.status == "pending"  # sub 线提取材料不足 → pending 计数
+    assert sub.pending_days == 1
+    assert sub.model is None
+
+
+@respx.mock
+def test_event_day_commit_message(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    _event_setup(repo, monkeypatch, EVENT_REPLIES)
+
+    assert main(["vendors", "--date", "2026-10-29"]) == 0  # 默认提交
+    log = subprocess.run(
+        ["git", "-C", str(repo), "log", "--oneline"], check=True,
+        capture_output=True, text=True,
+    ).stdout
+    assert log.splitlines()[0].endswith("docs: 大模型新鲜度日报 2026-10-29 [skip ci]")
+    tracked = subprocess.run(
+        ["git", "-C", str(repo), "ls-files", "data/vendor-releases"],
+        check=True, capture_output=True, text=True,
+    ).stdout
+    assert "data/vendor-releases/2026-10-29.json" in tracked
+    # core.quotepath 默认把非 ASCII 路径转义，关闭后断言原始中文文件名
+    reports_tracked = subprocess.run(
+        ["git", "-C", str(repo), "-c", "core.quotepath=off", "ls-files", "reports"],
+        check=True, capture_output=True, text=True,
+    ).stdout
+    assert "reports/各大厂商大模型新鲜度-2026-10-29.md" in reports_tracked
+
+
+# ---------- 场景③：二次确认失败 → 线 pending、不进表 ----------
+
+
+@respx.mock
+def test_confirm_failure_keeps_line_pending_and_out_of_table(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    # zai 旗舰线从未确认（空 pending）：提取有效但二次确认失败 → 不写基线、不进表
+    first_confirm_baseline = Baseline(
+        date="2026-10-28",
+        vendors=[
+            VendorState(
+                id="zai",
+                seen_directory_ids=["z-ai/glm-5.3"],
+                lines=[LineState(key="flagship"), LineState(key="sub")],
+            ),
+            make_event_baseline().vendors[1],  # openai：ok 且条目已见 → 不触发
+        ],
+    )
+    llm = _event_setup(
+        repo, monkeypatch,
+        [CLASSIFY_FLAGSHIP_JSON, EXTRACT_JSON, CONFIRM_NULL_JSON, INSUFFICIENT_JSON],
+        baseline=first_confirm_baseline,
+    )
+
+    assert main(["vendors", "--date", "2026-10-29", "--no-commit"]) == 0
+    assert len(llm.calls) == 4  # classify + extract + confirm（确认未过）+ extract(sub)
+
+    md = Path(REPORT_MD).read_text("utf-8")
+    assert "GLM-5.4" not in md  # 从未确认的线不进表
+    assert "| OpenAI | [GPT-6.1](https://openai.com/gpt-6-1) | 2026-10-20 | 9 |" in md
+
+    saved = load_baseline(baseline_path(Path("data"), "2026-10-29"))
+    zai = next(v for v in saved.vendors if v.id == "zai")
+    flagship = zai.lines[0]
+    assert flagship.status == "pending"
+    assert flagship.model is None  # 未确认不写基线值
+    assert flagship.pending_days == 1
+    assert "z-ai/glm-5.4" not in zai.seen_directory_ids  # 无终态结论 → 次日重触发
+
+
+# ---------- 场景④：pending 满 7 天冻结 → 恰好一次 send_alert ----------
+
+
+@respx.mock
+def test_freeze_transition_sends_single_alert(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    monkeypatch.chdir(repo)
+    _clean_env(monkeypatch)
+    monkeypatch.setattr("time.sleep", lambda _s: None)
+    _stub_none(monkeypatch)
+    _mock_dirs(EMPTY_DIR, {})
+    # 前一日基线：zai 旗舰 pending 已满 7 天（release_date 新近避免 stale 触发，
+    # 走"未触发厂商线 finalize_state 冻结"路径）；openai ok 新鲜。
+    save_baseline(
+        Baseline(
+            date="2026-10-28",
+            vendors=[
+                VendorState(
+                    id="zai",
+                    seen_directory_ids=["z-ai/glm-5.3"],
+                    lines=[
+                        LineState(
+                            key="flagship", status="pending", pending_days=7,
+                            release_date="2026-10-25", reason="裁决缺失",
+                        ),
+                        LineState(key="sub"),
+                    ],
+                ),
+                VendorState(
+                    id="openai",
+                    lines=[
+                        LineState(
+                            key="flagship", model="GPT-6.1", release_date="2026-10-20",
+                            url="https://openai.com/gpt-6-1",
+                            last_verified="2026-10-28", status="ok",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        baseline_path(Path("data"), "2026-10-28"),
+    )
+    alerts: list[tuple] = []
+    monkeypatch.setattr(
+        "free_model_spider.cli.send_alert",
+        lambda client, title, content: alerts.append((client, title, content)),
+    )
+
+    assert main(["vendors", "--date", "2026-10-29", "--no-commit"]) == 0
+    assert len(alerts) == 1  # 迁移那一刻只报一次
+    _, title, content = alerts[0]
+    assert title == "大模型新鲜度厂商冻结"
+    assert "智谱 AI" in content
+    assert "GLM 主线" in content
+    assert "7" in content
+
+    saved = load_baseline(baseline_path(Path("data"), "2026-10-29"))
+    zai = next(v for v in saved.vendors if v.id == "zai")
+    assert zai.lines[0].status == "stale-baseline"
+    assert zai.lines[0].pending_days == 7
+    assert "冻结" in zai.lines[0].reason
+    openai = next(v for v in saved.vendors if v.id == "openai")
+    assert openai.lines[0].status == "ok"
+    assert openai.lines[0].last_verified == "2026-10-29"  # 未冻结线收尾重臂
+
+
+# ---------- 场景⑤：同日重跑幂等 → 不重复判 LLM ----------
+
+
+@respx.mock
+def test_same_day_rerun_is_idempotent(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    _event_setup(repo, monkeypatch, EVENT_REPLIES)
+    assert main(["vendors", "--date", "2026-10-29", "--no-commit"]) == 0
+
+    llm2 = FakeLLM([])  # 二次运行的 stub：任何 LLM 调用都会 pop 空列表报错
+    _stub(monkeypatch, llm2, FakeSearch([]))
+    assert main(["vendors", "--date", "2026-10-29", "--no-commit"]) == 0
+    assert llm2.calls == []  # 当日基线已存在且无新事件 → 零 LLM 调用
+    md_after = Path(REPORT_MD).read_text("utf-8")
+    # 行内容不变（佐证 URL 只在裁决日重建，同日重跑无裁决则不附 ⧉，属预期语义）
+    assert "| 智谱 AI | [GLM-5.4](https://z.ai/blog/glm-5-4) | 2026-10-20 | 9 |" in md_after
+    assert "| OpenAI | [GPT-6.1](https://openai.com/gpt-6-1) | 2026-10-20 | 9 |" in md_after

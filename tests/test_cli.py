@@ -226,3 +226,46 @@ def test_all_sources_fail_no_readme_pollution(tmp_path, monkeypatch):
     assert main(["run", "--sources", "opencode,openrouter", "--date", "2026-09-30", "--no-commit"]) == 1
     # 全源失败：不往 README 写空索引块
     assert Path("README.md").read_text("utf-8") == "# free-model-spider\n"
+
+
+@respx.mock
+def test_run_failure_source_sends_alert(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    monkeypatch.chdir(repo)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("BRAVE_API_KEY", raising=False)
+    monkeypatch.setattr("time.sleep", lambda s: None)  # 跳过重试退避等待
+    alerts: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "free_model_spider.cli.send_alert",
+        lambda client, title, content: alerts.append((title, content)),
+    )
+    respx.get("https://openrouter.ai/api/v1/models").mock(return_value=httpx.Response(500))
+    # 失败源非空 → 发一次告警，退出码仍为 1（原有行为不变）
+    assert main(["run", "--sources", "openrouter", "--date", "2026-09-30", "--no-commit"]) == 1
+    assert len(alerts) == 1
+    title, content = alerts[0]
+    assert title == "免费模型日报存在失败源"
+    assert "openrouter" in content
+
+
+@respx.mock
+def test_run_success_sends_no_alert(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    monkeypatch.chdir(repo)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("BRAVE_API_KEY", raising=False)
+    alerts: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "free_model_spider.cli.send_alert",
+        lambda client, title, content: alerts.append((title, content)),
+    )
+    respx.get("https://openrouter.ai/api/v1/models").mock(
+        return_value=httpx.Response(200, json=PAGE_DAY1)
+    )
+    assert main(["run", "--sources", "openrouter", "--date", "2026-09-30", "--no-commit"]) == 0
+    assert alerts == []  # 全部成功：不发告警
