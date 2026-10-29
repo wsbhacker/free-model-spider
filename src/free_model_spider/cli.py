@@ -309,7 +309,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.no_commit:
         _git_commit(date, args.data_dir, args.reports_dir, args.readme)
     if failed:
-        send_alert(client, "免费模型日报存在失败源",
+        send_alert(client, "免费模型日报失败源",
                    f"失败源：{'、'.join(failed)}\n{run_link()}")
         # 非零退出让 Actions 红灯可见；成功源产物已在上面照常提交
         print(f"失败源：{'、'.join(failed)}")

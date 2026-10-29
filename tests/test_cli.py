@@ -247,7 +247,7 @@ def test_run_failure_source_sends_alert(tmp_path, monkeypatch):
     assert main(["run", "--sources", "openrouter", "--date", "2026-09-30", "--no-commit"]) == 1
     assert len(alerts) == 1
     title, content = alerts[0]
-    assert title == "免费模型日报存在失败源"
+    assert title == "免费模型日报失败源"
     assert "openrouter" in content
 
 

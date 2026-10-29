@@ -190,7 +190,7 @@ EVENT_REPLIES = [
 
 
 def _event_setup(repo: Path, monkeypatch, replies: list[str],
-                 baseline: Baseline | None = None) -> FakeLLM:
+                 baseline: Baseline | None = None) -> tuple[FakeLLM, respx.Route]:
     _init_repo(repo)
     monkeypatch.chdir(repo)
     _clean_env(monkeypatch)
@@ -198,12 +198,12 @@ def _event_setup(repo: Path, monkeypatch, replies: list[str],
     llm = FakeLLM(replies)
     _stub(monkeypatch, llm, FakeSearch(SEARCH_RESULTS))
     _mock_dirs(FULL_DIR, {})
-    respx.get(PAGE_URL).mock(  # 二次确认抓取的官方公告页
+    confirm_route = respx.get(PAGE_URL).mock(  # 二次确认抓取的官方公告页
         return_value=httpx.Response(200, text="智谱正式发布 GLM-5.4：于 2026-10-20 正式发布。")
     )
     save_baseline(baseline or make_event_baseline(),
                   baseline_path(Path("data"), "2026-10-28"))
-    return llm
+    return llm, confirm_route
 
 
 # ---------- 场景①：首日 + 无 LLM/search → 空表 + 基线全 pending ----------
@@ -248,7 +248,7 @@ def test_first_day_without_keys_produces_empty_report_and_pending_baseline(
 @respx.mock
 def test_event_day_updates_baseline_report_and_corroboration(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
-    llm = _event_setup(repo, monkeypatch, EVENT_REPLIES)
+    llm, _ = _event_setup(repo, monkeypatch, EVENT_REPLIES)
     commits: list = []
     monkeypatch.setattr(
         "free_model_spider.cli._git_commit", lambda *a, **k: commits.append((a, k))
@@ -318,19 +318,21 @@ def test_event_day_commit_message(tmp_path, monkeypatch):
 @respx.mock
 def test_confirm_failure_keeps_line_pending_and_out_of_table(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
-    # zai 旗舰线从未确认（空 pending）：提取有效但二次确认失败 → 不写基线、不进表
+    # zai 旗舰线从未确认（空 pending）：提取有效但二次确认失败 → 不写基线、不进表。
+    # seen 必须含 4bit 挂靠条目：否则它会成为第二个粗筛候选，LLM 应答队列整体错位，
+    # CONFIRM_NULL_JSON 会被 extract 吃掉、confirm_from_page 根本不执行（评审 Important 1）。
     first_confirm_baseline = Baseline(
         date="2026-10-28",
         vendors=[
             VendorState(
                 id="zai",
-                seen_directory_ids=["z-ai/glm-5.3"],
+                seen_directory_ids=["z-ai/glm-5.3", "z-ai/glm-5.5-4bit"],
                 lines=[LineState(key="flagship"), LineState(key="sub")],
             ),
             make_event_baseline().vendors[1],  # openai：ok 且条目已见 → 不触发
         ],
     )
-    llm = _event_setup(
+    llm, confirm_route = _event_setup(
         repo, monkeypatch,
         [CLASSIFY_FLAGSHIP_JSON, EXTRACT_JSON, CONFIRM_NULL_JSON, INSUFFICIENT_JSON],
         baseline=first_confirm_baseline,
@@ -338,6 +340,7 @@ def test_confirm_failure_keeps_line_pending_and_out_of_table(tmp_path, monkeypat
 
     assert main(["vendors", "--date", "2026-10-29", "--no-commit"]) == 0
     assert len(llm.calls) == 4  # classify + extract + confirm（确认未过）+ extract(sub)
+    assert confirm_route.call_count == 1  # 确认环节确实抓取过官方公告页
 
     md = Path(REPORT_MD).read_text("utf-8")
     assert "GLM-5.4" not in md  # 从未确认的线不进表
@@ -347,7 +350,8 @@ def test_confirm_failure_keeps_line_pending_and_out_of_table(tmp_path, monkeypat
     zai = next(v for v in saved.vendors if v.id == "zai")
     flagship = zai.lines[0]
     assert flagship.status == "pending"
-    assert flagship.model is None  # 未确认不写基线值
+    assert flagship.model is None  # 确认失败：基线值不被写入（原空线保持 None）
+    assert flagship.url is None
     assert flagship.pending_days == 1
     assert "z-ai/glm-5.4" not in zai.seen_directory_ids  # 无终态结论 → 次日重触发
 
