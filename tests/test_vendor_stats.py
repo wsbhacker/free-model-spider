@@ -331,6 +331,16 @@ def test_screen_new_entries_casefold_match_exclude_and_seen():
     assert new == ["openai/gpt-5.2"]
 
 
+def test_screen_new_entries_returns_casefolded_ids():
+    """契约钉子：已映射 provider 的 models.dev 大写条目也须 casefold 匹配并返回
+    casefold 后的 id（Task 5 依赖）；若无 casefold，gpt-\\d 不命中大写 GPT-5.2-PRO。"""
+    config = make_dir_config()
+    openai = config.vendors[0]
+    state = VendorState(id="openai", seen_directory_ids=[])
+    new = screen_new_entries(openai, state, ["openai:GPT-5.2-PRO"])
+    assert new == ["openai:gpt-5.2-pro"]
+
+
 def test_screen_new_entries_override_line_not_participating():
     vendor = VendorConfig(
         id="openai",

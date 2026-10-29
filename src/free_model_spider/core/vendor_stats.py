@@ -123,7 +123,7 @@ def collect_directory_entries(
             model_id = item.get("id")
             if model_id:
                 openrouter_ids.append(model_id)
-    except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
+    except (httpx.HTTPError, AttributeError, KeyError, TypeError, ValueError) as exc:
         errors.append(f"openrouter: {exc}")
 
     modelsdev_entries: list[tuple[str, str]] = []
