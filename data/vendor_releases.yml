@@ -1,0 +1,173 @@
+# 厂商大模型新鲜度统计配置（spec §5，2026-10-29-vendor-release-stats-design.md §5.1）
+# 厂商顺序 = 报告展示顺序（海外在前、国内在后）；增删厂商只改此文件。
+# match/exclude 为目录门铃粗筛（regex，any-of）；产品线归属最终由 LLM 裁决。
+stale_days: 45
+vendors:
+  - id: openai
+    name: OpenAI
+    official_domains: [openai.com]
+    directory_slugs: { openrouter: [openai, "~openai"], modelsdev: [openai] }
+    lines:
+      - key: flagship
+        name: GPT 主线
+        match: ['gpt-\d']
+        exclude: [mini, nano, image, video, audio, embed, transcribe, safeguard, guard]
+      - key: sub
+        name: GPT mini
+        match: ['gpt-\d[\d.]*-?mini']
+  - id: anthropic
+    name: Anthropic
+    official_domains: [anthropic.com]
+    directory_slugs: { openrouter: [anthropic], modelsdev: [anthropic] }
+    lines:
+      - key: flagship
+        name: Claude Opus
+        match: ['claude-[\d.]*-?opus']
+        exclude: [sonnet, haiku, image, video, audio, embed, guard, translate]
+      - key: sub
+        name: Claude Sonnet
+        match: ['claude-[\d.]*-?sonnet']
+        exclude: [haiku, image, video, audio, embed, guard, translate]
+  - id: google
+    name: Google DeepMind
+    official_domains: [blog.google, deepmind.google, ai.google.dev]
+    directory_slugs: { openrouter: [google], modelsdev: [google] }
+    lines:
+      - key: flagship
+        name: Gemini 主线
+        match: ['gemini-\d']
+        exclude: [flash, image, video, audio, embedding, guard, nano, live]
+      - key: sub
+        name: Gemini Flash
+        match: ['gemini-\d[\d.]*-?flash']
+  - id: meta
+    name: Meta
+    official_domains: [ai.meta.com, llama.com]
+    directory_slugs: { openrouter: [meta-llama, meta], modelsdev: [meta] }
+    lines:
+      - key: flagship
+        name: Llama 主线
+        match: ['llama-?\d']
+        exclude: [guard, prompt-guard, image, video, audio, embed]
+  - id: xai
+    name: xAI
+    official_domains: [x.ai]
+    directory_slugs: { openrouter: [x-ai], modelsdev: [xai] }
+    lines:
+      - key: flagship
+        name: Grok 主线
+        match: ['grok-\d']
+        exclude: [image, video, audio, embed, guard, translate, vision]
+  - id: mistral
+    name: Mistral
+    official_domains: [mistral.ai]
+    directory_slugs: { openrouter: [mistralai], modelsdev: [mistral] }
+    lines:
+      - key: flagship
+        name: Mistral Large
+        match: ['mistral-large']
+        exclude: [medium, small, nemo, saba, image, video, audio, embed, guard, translate]
+      - key: sub
+        name: Mistral 中杯（Medium/Ministral）
+        match: ['mistral-medium', 'ministral']
+        exclude: [small, image, video, audio, embed, guard, translate]
+  - id: cohere
+    name: Cohere
+    official_domains: [cohere.com]
+    directory_slugs: { openrouter: [cohere], modelsdev: [cohere] }
+    lines:
+      - key: flagship
+        name: Command 主线
+        match: ['command']
+        exclude: [embed, rerank, image, video, audio, guard, translate]
+  - id: deepseek
+    name: DeepSeek
+    official_domains: [deepseek.com, api-docs.deepseek.com]
+    directory_slugs: { openrouter: [deepseek], modelsdev: [deepseek] }
+    lines:
+      - key: flagship
+        name: DeepSeek V/R 主线
+        match: ['deepseek-(v\d|r\d|chat|reasoner)']
+        exclude: [flash, coder, vision, image, video, audio, embed, guard, translate]
+      - key: sub
+        name: DeepSeek Flash
+        match: ['deepseek-[\d.]*-?flash']
+        exclude: [coder, vision, image, video, audio, embed, guard, translate]
+  - id: qwen
+    name: 阿里 Qwen
+    official_domains: [qwen.ai, qwenlm.github.io]
+    directory_slugs: { openrouter: [qwen], modelsdev: [alibaba] }
+    lines:
+      - key: flagship
+        name: Qwen Max/旗舰
+        match: ['qwen-(max|plus)', 'qwen\d+(\.\d+)?', 'qwq']
+        exclude: [turbo, flash, coder, vl, omni, mt, character, image, video, audio, embed, guard, translate]
+      - key: sub
+        name: Qwen Turbo/Flash
+        match: ['qwen[\d.]*-?(turbo|flash)']
+        exclude: [mt, coder, vl, omni, image, video, audio, embed, guard, translate]
+  - id: moonshot
+    name: 月之暗面
+    official_domains: [moonshot.cn, moonshot.ai]
+    directory_slugs: { openrouter: [moonshotai], modelsdev: [moonshotai] }
+    lines:
+      - key: flagship
+        name: Kimi K 主线
+        match: ['kimi-k\d']
+        exclude: [flash, turbo, highspeed, image, video, audio, embed, guard, translate, vl, vision]
+      - key: sub
+        name: Kimi K Flash/轻量
+        match: ['kimi-k\d[\d.]*-?(flash|turbo|lite|mini|highspeed)']
+        exclude: [image, video, audio, embed, guard, translate, vl, vision]
+  - id: zhipu
+    name: 智谱 AI
+    official_domains: [z.ai, bigmodel.cn, zhipuai.cn]
+    directory_slugs: { openrouter: [z-ai], modelsdev: [zai, zhipuai] }
+    lines:
+      - key: flagship
+        name: GLM 主线
+        match: ['glm-\d']
+        exclude: [flash, air, embedding, voice, vision, guard]
+      - key: sub
+        name: GLM Flash
+        match: ['glm-\d[\d.]*-?(flash|flashx)']
+  - id: minimax
+    name: MiniMax
+    official_domains: [minimax.io, minimaxi.com]
+    directory_slugs: { openrouter: [minimax], modelsdev: [minimax] }
+    lines:
+      - key: flagship
+        name: MiniMax M 主线
+        match: ['minimax-m\d']
+        exclude: [flash, image, video, audio, embed, guard, translate, speech, music, vl]
+      - key: sub
+        name: M Flash
+        match: ['minimax-m\d[\d.]*-?flash']
+        exclude: [image, video, audio, embed, guard, translate, speech, music, vl]
+  - id: bytedance
+    name: 字节 Seed
+    official_domains: [seed.bytedance.com, team.doubao.com]
+    directory_slugs: { openrouter: [bytedance-seed], modelsdev: [volcengine] }
+    lines:
+      - key: flagship
+        name: Seed/豆包主力
+        match: ['doubao', 'seed']
+        exclude: [seedream, seedance, seededit, ui-tars, code, vision, asr, tts, speech, image, video, audio, embed, guard, translate]
+  - id: tencent
+    name: 腾讯混元
+    official_domains: [hy.woa.com, cloud.tencent.com]
+    directory_slugs: { openrouter: [tencent], modelsdev: [tencent-tokenhub, tencent-coding-plan] }
+    lines:
+      - key: flagship
+        name: Hunyuan 主线
+        match: ['hunyuan', 'hy\d']
+        exclude: [hy-mt, image, video, audio, embed, guard, translate, vision, speech, tts, asr, 3d]
+  - id: stepfun
+    name: 阶跃星辰
+    official_domains: [stepfun.com, platform.stepfun.com]
+    directory_slugs: { openrouter: [stepfun], modelsdev: [stepfun] }
+    lines:
+      - key: flagship
+        name: Step 主线
+        match: ['step-\d']
+        exclude: [image, video, audio, embed, guard, translate, vision, speech, tts, asr]
