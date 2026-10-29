@@ -1,0 +1,270 @@
+{
+  "source": "opencode",
+  "date": "2026-10-29",
+  "count": 10,
+  "models": [
+    {
+      "source": "opencode",
+      "id": "beam-free",
+      "name": "Beam Free",
+      "context_length": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "raw": {
+        "pricing": {
+          "model": "Beam Free",
+          "input": "Free",
+          "output": "Free",
+          "cached_read": "Free",
+          "cached_write": "-"
+        }
+      }
+    },
+    {
+      "source": "opencode",
+      "id": "big-pickle",
+      "name": "Big Pickle",
+      "context_length": 200000,
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "raw": {
+        "pricing": {
+          "model": "Big Pickle",
+          "input": "Free",
+          "output": "Free",
+          "cached_read": "Free",
+          "cached_write": "-"
+        }
+      }
+    },
+    {
+      "source": "opencode",
+      "id": "deepseek-v4.1-flash-free",
+      "name": "DeepSeek V4.1 Flash Free",
+      "context_length": 200000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "raw": {
+        "pricing": {
+          "model": "DeepSeek V4.1 Flash Free",
+          "input": "Free",
+          "output": "Free",
+          "cached_read": "Free",
+          "cached_write": "-"
+        }
+      }
+    },
+    {
+      "source": "opencode",
+      "id": "flint-40b-free",
+      "name": "Flint 40B Free",
+      "context_length": 262144,
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "raw": {
+        "pricing": {
+          "model": "Flint 40B Free",
+          "input": "Free",
+          "output": "Free",
+          "cached_read": "Free",
+          "cached_write": "-"
+        }
+      }
+    },
+    {
+      "source": "opencode",
+      "id": "glm-5.3-flash-free",
+      "name": "GLM-5.3-Flash Free",
+      "context_length": 200000,
+      "input_modalities": [
+        "text",
+        "image",
+        "video"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "raw": {
+        "pricing": {
+          "model": "GLM-5.3-Flash Free",
+          "input": "Free",
+          "output": "Free",
+          "cached_read": "Free",
+          "cached_write": "-"
+        }
+      }
+    },
+    {
+      "source": "opencode",
+      "id": "jev-1.13-free",
+      "name": "Jev 1.13 Free",
+      "context_length": null,
+      "input_modalities": [],
+      "output_modalities": [],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "raw": {
+        "pricing": {
+          "model": "Jev 1.13 Free",
+          "input": "Free",
+          "output": "Free",
+          "cached_read": "-",
+          "cached_write": "-"
+        }
+      }
+    },
+    {
+      "source": "opencode",
+      "id": "mimo-v2.6-flash-free",
+      "name": "MiMo-V2.6-Flash Free",
+      "context_length": 200000,
+      "input_modalities": [
+        "text",
+        "image",
+        "audio",
+        "video"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "raw": {
+        "pricing": {
+          "model": "MiMo-V2.6-Flash Free",
+          "input": "Free",
+          "output": "Free",
+          "cached_read": "Free",
+          "cached_write": "-"
+        }
+      }
+    },
+    {
+      "source": "opencode",
+      "id": "nemotron-3-ultra-free",
+      "name": "Nemotron 3 Ultra Free",
+      "context_length": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "raw": {
+        "pricing": {
+          "model": "Nemotron 3 Ultra Free",
+          "input": "Free",
+          "output": "Free",
+          "cached_read": "Free",
+          "cached_write": "-"
+        }
+      }
+    },
+    {
+      "source": "opencode",
+      "id": "nemotron-3.5-lightning-free",
+      "name": "Nemotron 3.5 Lightning Free",
+      "context_length": 262144,
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "raw": {
+        "pricing": {
+          "model": "Nemotron 3.5 Lightning Free",
+          "input": "Free",
+          "output": "Free",
+          "cached_read": "Free",
+          "cached_write": "-"
+        }
+      }
+    },
+    {
+      "source": "opencode",
+      "id": "nemotron-3.5-super-vl-free",
+      "name": "Nemotron 3.5 Super VL Free",
+      "context_length": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "raw": {
+        "pricing": {
+          "model": "Nemotron 3.5 Super VL Free",
+          "input": "Free",
+          "output": "Free",
+          "cached_read": "Free",
+          "cached_write": "-"
+        }
+      }
+    }
+  ]
+}
