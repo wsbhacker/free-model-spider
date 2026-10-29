@@ -68,6 +68,17 @@ INSUFFICIENT_JSON = (
     '{"model": null, "release_date": null, "source_urls": [], "evidence": [], '
     '"reason": "搜索结果未提及发布日期"}'
 )
+SUB_PAGE_URL = "https://z.ai/blog/glm-5-4-flash"
+EXTRACT_SUB_JSON = (
+    '{"model": "GLM-5.4-Flash", "release_date": "2026-10-18", '
+    '"source_urls": ["https://z.ai/blog/glm-5-4-flash"], '
+    '"evidence": ["GLM-5.4-Flash 于 2026-10-18 正式发布 https://z.ai/blog/glm-5-4-flash"], '
+    '"reason": ""}'
+)
+CONFIRM_SUB_JSON = (
+    '{"model": "GLM-5.4-Flash", "release_date": "2026-10-18", '
+    '"evidence": ["页面原文：GLM-5.4-Flash 于 2026-10-18 正式发布"], "reason": ""}'
+)
 SEARCH_RESULTS = [
     SearchResult(title="智谱发布 GLM-5.4", url=PAGE_URL, snippet="GLM-5.4 于 2026-10-20 正式发布。")
 ]
@@ -358,7 +369,6 @@ def test_confirm_failure_keeps_line_pending_and_out_of_table(tmp_path, monkeypat
 
 # ---------- 场景④：pending 满 7 天冻结 → 恰好一次 send_alert ----------
 
-
 @respx.mock
 def test_freeze_transition_sends_single_alert(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
@@ -368,8 +378,10 @@ def test_freeze_transition_sends_single_alert(tmp_path, monkeypatch):
     monkeypatch.setattr("time.sleep", lambda _s: None)
     _stub_none(monkeypatch)
     _mock_dirs(EMPTY_DIR, {})
-    # 前一日基线：zai 旗舰 pending 已满 7 天（release_date 新近避免 stale 触发，
-    # 走"未触发厂商线 finalize_state 冻结"路径）；openai ok 新鲜。
+    # 前一日基线：zai 旗舰 pending 已满 7 天；sub 为曾确认过的线复核转 pending
+    # （last_verified 新近）——两线参考日都新鲜，zai 不触发 stale，旗舰走
+    # "未触发厂商线 finalize_state 冻结"路径（spec §6.2 改任一线超窗后，
+    # 任一线超窗都会触发复核，故这里两线都须保持新鲜）；openai ok 新鲜。
     save_baseline(
         Baseline(
             date="2026-10-28",
@@ -382,7 +394,13 @@ def test_freeze_transition_sends_single_alert(tmp_path, monkeypatch):
                             key="flagship", status="pending", pending_days=7,
                             release_date="2026-10-25", reason="裁决缺失",
                         ),
-                        LineState(key="sub"),
+                        LineState(
+                            key="sub", model="GLM-5.3-Flash",
+                            release_date="2026-09-01",
+                            url="https://z.ai/blog/glm-5-3-flash",
+                            last_verified="2026-10-28",
+                            status="pending", pending_days=2, reason="裁决缺失",
+                        ),
                     ],
                 ),
                 VendorState(
@@ -423,13 +441,141 @@ def test_freeze_transition_sends_single_alert(tmp_path, monkeypatch):
     assert openai.lines[0].last_verified == "2026-10-29"  # 未冻结线收尾重臂
 
 
+# ---------- 场景④b：厂商因其余线触发复核时，冻结线被跳过（零 LLM 调用） ----------
+
+
+@respx.mock
+def test_frozen_line_skipped_in_review_no_llm_calls(tmp_path, monkeypatch):
+    """复核循环跳过 status='stale-baseline' 的线：不做 extract/classify，
+    其余线照常（spec §7.2：冻结线不得每日烧配额）。"""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    monkeypatch.chdir(repo)
+    _clean_env(monkeypatch)
+    monkeypatch.setattr("time.sleep", lambda _s: None)
+    # 应答恰好覆盖“classify glm-5.4 + sub 线 extract”：若冻结线未被跳过，
+    # flagship 会先吃掉 INSUFFICIENT_JSON，sub 弹空列表 → IndexError → rc 1。
+    llm = FakeLLM([CLASSIFY_FLAGSHIP_JSON, INSUFFICIENT_JSON])
+    _stub(monkeypatch, llm, FakeSearch(SEARCH_RESULTS))
+    _mock_dirs(FULL_DIR, {})
+    save_baseline(
+        Baseline(
+            date="2026-10-28",
+            vendors=[
+                VendorState(
+                    id="zai",
+                    seen_directory_ids=[
+                        "z-ai/glm-5.3", "zai:glm-5.3-flash", "z-ai/glm-5.5-4bit",
+                    ],
+                    lines=[
+                        LineState(
+                            key="flagship", model="GLM-5.3", release_date="2026-09-24",
+                            url="https://z.ai/blog/glm-5-3",
+                            last_verified="2026-10-28", status="stale-baseline",
+                            reason="pending 连续 7 天未决，冻结为 stale-baseline",
+                            pending_days=9,
+                        ),
+                        LineState(
+                            key="sub", model="GLM-5.3-Flash", release_date="2026-10-01",
+                            url="https://z.ai/blog/glm-5-3-flash",
+                            last_verified="2026-10-28", status="ok",
+                        ),
+                    ],
+                ),
+                make_event_baseline().vendors[1],  # openai：ok 且条目已见 → 不触发
+            ],
+        ),
+        baseline_path(Path("data"), "2026-10-28"),
+    )
+
+    assert main(["vendors", "--date", "2026-10-29", "--no-commit"]) == 0
+    assert len(llm.calls) == 2  # 1 classify + 1 extract(sub)；冻结 flagship 零调用
+
+    saved = load_baseline(baseline_path(Path("data"), "2026-10-29"))
+    zai = next(v for v in saved.vendors if v.id == "zai")
+    flagship, sub = zai.lines[0], zai.lines[1]
+    assert flagship.status == "stale-baseline"  # 冻结线原样保留，未被复核改动
+    assert flagship.model == "GLM-5.3"
+    assert flagship.release_date == "2026-09-24"
+    assert flagship.last_verified == "2026-10-28"
+    assert sub.status == "pending"  # 其余线照常裁决：sub 提取材料不足转 pending
+    assert sub.pending_days == 1
+    assert "z-ai/glm-5.4" in zai.seen_directory_ids  # 归类到冻结线（非 pending）→ 终态入 seen
+
+
+# ---------- 场景⑥：配置给既有厂商新增产品线 → 基线补线，不再 KeyError ----------
+
+
+@respx.mock
+def test_new_line_added_to_existing_vendor_is_backfilled(tmp_path, monkeypatch):
+    """yml 给既有厂商新增线而旧基线缺该线：运行时按配置顺序补 pending 线，
+    复核循环不再 line_states[key] KeyError → 厂商永久失败（final-review F5）。"""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    monkeypatch.chdir(repo)
+    _clean_env(monkeypatch)
+    monkeypatch.setattr("time.sleep", lambda _s: None)
+    llm = FakeLLM(EVENT_REPLIES)
+    _stub(monkeypatch, llm, FakeSearch(SEARCH_RESULTS))
+    _mock_dirs(FULL_DIR, {})
+    respx.get(PAGE_URL).mock(  # 二次确认抓取的官方公告页
+        return_value=httpx.Response(200, text="智谱正式发布 GLM-5.4：于 2026-10-20 正式发布。")
+    )
+    # 旧基线：zai 只有 flagship（对应 yml 后来新增 sub 线的场景）
+    save_baseline(
+        Baseline(
+            date="2026-10-28",
+            vendors=[
+                VendorState(
+                    id="zai",
+                    seen_directory_ids=["z-ai/glm-5.3"],
+                    lines=[
+                        LineState(
+                            key="flagship", model="GLM-5.3", release_date="2026-09-24",
+                            url="https://z.ai/blog/glm-5-3",
+                            last_verified="2026-10-28", status="ok",
+                        ),
+                    ],
+                ),
+                make_event_baseline().vendors[1],  # openai 完整
+            ],
+        ),
+        baseline_path(Path("data"), "2026-10-28"),
+    )
+
+    assert main(["vendors", "--date", "2026-10-29", "--no-commit"]) == 0
+
+    saved = load_baseline(baseline_path(Path("data"), "2026-10-29"))
+    zai = next(v for v in saved.vendors if v.id == "zai")
+    assert [line.key for line in zai.lines] == ["flagship", "sub"]  # 缺线已按配置顺序补齐
+    sub = zai.lines[1]
+    assert sub.status == "pending"  # 补的线随当日裁决走 pending
+    assert sub.model is None
+    flagship = zai.lines[0]
+    assert flagship.status == "ok"  # 原有线不受影响，照常裁决
+    assert flagship.model == "GLM-5.4"
+
+
 # ---------- 场景⑤：同日重跑幂等 → 不重复判 LLM ----------
 
 
 @respx.mock
 def test_same_day_rerun_is_idempotent(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
-    _event_setup(repo, monkeypatch, EVENT_REPLIES)
+    # spec §6.2 改任一线超窗触发后：空 pending 线（纪元参考日）会每日触发复核，
+    # 故首轮让 sub 线也裁决落定（ok + last_verified=today），重跑才零触发。
+    _event_setup(
+        repo, monkeypatch,
+        [
+            CLASSIFY_FLAGSHIP_JSON, IGNORE_JSON, EXTRACT_JSON, CONFIRM_JSON,
+            EXTRACT_SUB_JSON, CONFIRM_SUB_JSON,
+        ],
+    )
+    respx.get(SUB_PAGE_URL).mock(  # sub 线二次确认抓取的官方公告页
+        return_value=httpx.Response(
+            200, text="智谱正式发布 GLM-5.4-Flash：于 2026-10-18 正式发布。"
+        )
+    )
     assert main(["vendors", "--date", "2026-10-29", "--no-commit"]) == 0
 
     llm2 = FakeLLM([])  # 二次运行的 stub：任何 LLM 调用都会 pop 空列表报错

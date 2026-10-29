@@ -206,9 +206,10 @@ def detect_review(
 ) -> dict[str, list[str]]:
     """事件检测：返回 vendor_id -> 触发原因列表（'new-entry' / 'stale'）。
 
-    有粗筛后的新目录条目 → new-entry；无 override 的厂商其全部线满足
+    有粗筛后的新目录条目 → new-entry；无 override 的厂商任一线满足
     ``today - max(release_date, last_verified 或 '1970-01-01') > stale_days``
-    → stale。entries_by_vendor 缺该厂商（目录全失败）时仅按 stale 判定。
+    → stale（spec §6.2：任一线超窗即待复核，次旗舰超窗旗舰新鲜也触发）。
+    entries_by_vendor 缺该厂商（目录全失败）时仅按 stale 判定。
     """
     states = {v.id: v for v in baseline.vendors}
     reasons: dict[str, list[str]] = {}
@@ -220,7 +221,7 @@ def detect_review(
             vendor_reasons.append("new-entry")
         if state is not None and not any(
             line.override is not None for line in vendor.lines
-        ) and all(
+        ) and any(
             _line_is_stale(line, today, config.stale_days) for line in state.lines
         ):
             vendor_reasons.append("stale")
@@ -250,6 +251,9 @@ def apply_judgment(
 
     - judgment 缺失或事实字段不全（提取失败/校验不过/确认失败的统一入口）→
       原基线保留，status='pending' 且 pending_days+=1，reason 记来源环节；
+    - judgment.release_date 晚于 today（未来日期）→ 视同缺失：pending、
+      pending_days+=1、reason='未来日期拒绝'（首日分支同样不写入未来日期，
+      防 rows_from_baseline → days_since 抛 ValueError 崩溃全流水线）；
     - release_date 一律 ISO 字符串字典序比较：前进 → 整体更新 model/url/
       release_date；同日不同名 → 命名修正（仅 model/url）；同日同名 → 复核一致
       （仅重臂）；回退 → 防倒退拒绝（原值保留，转 pending 计数，满 7 天仍会冻结）；
@@ -261,6 +265,14 @@ def apply_judgment(
             update={
                 "status": "pending",
                 "reason": _REASON_MISSING_JUDGMENT,
+                "pending_days": state.pending_days + 1,
+            }
+        )
+    if judgment.release_date > today:  # 未来日期视同缺失，位置在首日分支之前统一拦截
+        return state.model_copy(
+            update={
+                "status": "pending",
+                "reason": "未来日期拒绝",
                 "pending_days": state.pending_days + 1,
             }
         )
@@ -322,16 +334,23 @@ def finalize_state(state: LineState, today: str) -> LineState:
     """复核日收尾（纯函数）：ok 线重臂、pending 满 7 天冻结，其余原样。
 
     - status='pending' 且 pending_days>=7 → 冻结为 'stale-baseline'
-      （保留 pending_days 供审计，条目此后由 update_seen 收入 seen）；
+      （保留 pending_days 供审计，条目此后由 update_seen 收入 seen），
+      同时 last_verified=today 重臂 stale 窗口；
     - status='ok' → last_verified=today（stale 触发的重臂出口）；
-    - status='stale-baseline' → 原样保留（冻结态不被收尾改动）；
+    - status='stale-baseline' → status 不变，last_verified=today 重臂
+      （防 _line_is_stale 永真 → detect_review 每日重触发该厂商烧配额，
+      spec §7.2 冻结目的）；
     - pending 未满 7 天 → 原样保留（pending_days 只在 apply_judgment 里推进）。
     """
     if state.status == "pending" and state.pending_days >= PENDING_FREEZE_DAYS:
         return state.model_copy(
-            update={"status": "stale-baseline", "reason": _REASON_FREEZE}
+            update={
+                "status": "stale-baseline",
+                "reason": _REASON_FREEZE,
+                "last_verified": today,
+            }
         )
-    if state.status == "ok":
+    if state.status in ("ok", "stale-baseline"):
         return state.model_copy(update={"last_verified": today})
     return state.model_copy()
 

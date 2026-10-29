@@ -3,6 +3,7 @@ import subprocess
 from pathlib import Path
 
 import httpx
+import pytest
 import respx
 
 from free_model_spider.cli import main
@@ -249,6 +250,40 @@ def test_run_failure_source_sends_alert(tmp_path, monkeypatch):
     title, content = alerts[0]
     assert title == "免费模型日报失败源"
     assert "openrouter" in content
+    # 告警契约（spec §10.1）：content 含日期与每源异常摘要
+    assert "日期：2026-09-30" in content
+    assert "失败源：openrouter" in content
+    assert "HTTPStatusError" in content  # 异常类型摘要（repr 截断 200 字内）
+    assert content.index("摘要：") < content.index("HTTPStatusError")
+
+
+@respx.mock
+def test_commit_failure_sends_alert_then_reraises(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    monkeypatch.chdir(repo)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("BRAVE_API_KEY", raising=False)
+    alerts: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "free_model_spider.cli.send_alert",
+        lambda client, title, content: alerts.append((title, content)),
+    )
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("git 炸了")
+
+    monkeypatch.setattr("free_model_spider.cli._git_commit", boom)
+    _mock_api(PAGE_DAY1)
+    # 提交失败：先告警再照旧抛出（保持 Actions 红灯，spec §10.1）
+    with pytest.raises(RuntimeError):
+        main(["run", "--sources", "openrouter", "--date", "2026-09-30"])
+    assert len(alerts) == 1
+    title, content = alerts[0]
+    assert title == "免费模型日报提交失败"
+    assert "日期：2026-09-30" in content
+    assert "RuntimeError" in content
 
 
 @respx.mock

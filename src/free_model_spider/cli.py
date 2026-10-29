@@ -98,11 +98,17 @@ def run_vendors(args) -> int:
         baseline.date = date
         states = {v.id: v for v in baseline.vendors}
         for vendor in config.vendors:
-            if vendor.id not in states:  # 配置新增厂商：补全 pending 线随当日基线落盘
+            state = states.get(vendor.id)
+            if state is None:  # 配置新增厂商：补全 pending 线随当日基线落盘
                 state = VendorState(id=vendor.id)
                 state.lines = [LineState(key=line.key) for line in vendor.lines]
                 states[vendor.id] = state
                 baseline.vendors.append(state)
+                continue
+            existing = {line_state.key for line_state in state.lines}
+            for line in vendor.lines:  # 既有厂商配置新增产品线：同样补 pending 线，
+                if line.key not in existing:  # 防复核循环 line_states[key] KeyError
+                    state.lines.append(LineState(key=line.key))
         entries_by_vendor, dir_errors = collect_directory_entries(client, config)
         for error in dir_errors:
             print(f"vendors: 目录采集降级：{error}")
@@ -157,6 +163,10 @@ def run_vendors(args) -> int:
                     if line.override is not None:
                         continue  # 已在载入期直接采用
                     old = line_states[line.key]
+                    if old.status == "stale-baseline":
+                        # 冻结线不复核（finalize_state 已重臂 last_verified，stale
+                        # 窗口不会再触发），避免冻结厂商每日烧 Brave+LLM（spec §7.2）
+                        continue
                     judgment, _ = extract_line(llm, search, vendor, line, search_sleep=1.1)
                     if judgment is not None and (
                         judgment.release_date != old.release_date
@@ -257,6 +267,7 @@ def main(argv: list[str] | None = None) -> int:
     llm = build_llm_client(client)
     entries: list[IndexEntry] = []
     failed: list[str] = []
+    fail_reasons: dict[str, str] = {}
 
     for name in names:
         source = create_source(name, client)
@@ -301,16 +312,25 @@ def main(argv: list[str] | None = None) -> int:
                   f" -> {report_rel}")
         except Exception as exc:  # 单源隔离：上游改版/故障只损失该源，其余源照常出报告并提交
             failed.append(name)
+            fail_reasons[name] = repr(exc)[:200]  # 告警摘要截断 200 字（spec §10.1）
             print(f"{name}: 处理失败，跳过该源：{exc!r}")
             continue
 
     if entries:
         update_readme_index(args.readme, entries)
     if not args.no_commit:
-        _git_commit(date, args.data_dir, args.reports_dir, args.readme)
+        try:
+            _git_commit(date, args.data_dir, args.reports_dir, args.readme)
+        except Exception as exc:  # 提交失败：先告警再照旧抛出（保持红灯，spec §10.1）
+            send_alert(client, "免费模型日报提交失败",
+                       f"日期：{date}\n免费模型日报 git 提交失败："
+                       f"{type(exc).__name__}: {exc}\n{run_link()}")
+            raise
     if failed:
+        detail = "\n".join(f"{name}：{fail_reasons[name]}" for name in failed)
         send_alert(client, "免费模型日报失败源",
-                   f"失败源：{'、'.join(failed)}\n{run_link()}")
+                   f"日期：{date}\n失败源：{'、'.join(failed)}\n"
+                   f"摘要：\n{detail}\n{run_link()}")
         # 非零退出让 Actions 红灯可见；成功源产物已在上面照常提交
         print(f"失败源：{'、'.join(failed)}")
         return 1

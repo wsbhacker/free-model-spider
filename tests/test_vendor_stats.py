@@ -472,7 +472,8 @@ def test_detect_review_stale_triggers_then_rearm_after_review():
     assert rearmed == {}
 
 
-def test_detect_review_stale_requires_all_lines_over_window():
+def test_detect_review_stale_triggers_on_any_line_over_window():
+    """spec §6.2：厂商任一线超窗即触发 stale（次旗舰超窗、旗舰新鲜也要复核）。"""
     config = make_dir_config()
     baseline = Baseline(
         date="2026-10-29",
@@ -480,13 +481,41 @@ def test_detect_review_stale_requires_all_lines_over_window():
             VendorState(
                 id="google",
                 lines=[
-                    LineState(  # 超窗
+                    LineState(  # 旗舰新鲜
                         key="flagship",
+                        release_date="2026-10-20",
+                        last_verified="2026-10-29",
+                        status="ok",
+                    ),
+                    LineState(  # 次旗舰超窗
+                        key="sub",
                         release_date="2026-06-01",
                         last_verified="2026-06-01",
                         status="ok",
                     ),
-                    LineState(  # 新鲜
+                ],
+            )
+        ],
+    )
+    assert detect_review(config, baseline, {}, "2026-10-29") == {"google": ["stale"]}
+
+
+def test_detect_review_stale_not_triggered_when_all_lines_fresh():
+    """双线都新鲜 → 不触发 stale。"""
+    config = make_dir_config()
+    baseline = Baseline(
+        date="2026-10-29",
+        vendors=[
+            VendorState(
+                id="google",
+                lines=[
+                    LineState(
+                        key="flagship",
+                        release_date="2026-10-20",
+                        last_verified="2026-10-29",
+                        status="ok",
+                    ),
+                    LineState(
                         key="sub",
                         release_date="2026-10-20",
                         last_verified="2026-10-29",
@@ -728,6 +757,58 @@ def test_apply_judgment_partial_fields_treated_as_missing():
     assert new.pending_days == 1
 
 
+def test_apply_judgment_future_date_treated_as_missing():
+    """未来日期裁决视同缺失：pending 计数、基线值不变（防 days_since 下游崩溃）。"""
+    state = LineState(
+        key="flagship",
+        model="gpt-5.1",
+        release_date="2026-10-26",
+        url="https://openai.com/blog/gpt-5-1",
+        last_verified="2026-10-28",
+        status="ok",
+    )
+    new = apply_judgment(
+        state, make_judgment(model="gpt-5.2", release_date="2026-10-30"), "2026-10-29"
+    )
+    assert new.model == "gpt-5.1"
+    assert new.release_date == "2026-10-26"
+    assert new.url == "https://openai.com/blog/gpt-5-1"
+    assert new.status == "pending"
+    assert new.reason == "未来日期拒绝"
+    assert new.pending_days == 1
+    assert new.last_verified == "2026-10-28"
+    # 纯函数：原对象不变
+    assert state.release_date == "2026-10-26"
+
+
+def test_apply_judgment_first_day_future_date_not_written():
+    """首日分支同样不写未来日期：空线保持空值并转 pending。"""
+    new = apply_judgment(
+        LineState(key="flagship"),
+        make_judgment(release_date="2026-10-30"),
+        "2026-10-29",
+    )
+    assert new.model is None
+    assert new.release_date is None
+    assert new.url is None
+    assert new.status == "pending"
+    assert new.reason == "未来日期拒绝"
+    assert new.pending_days == 1
+
+
+def test_apply_judgment_today_date_still_writes():
+    """边界：release_date == today 合法，正常写入（未来日期拒绝只拦 > today）。"""
+    new = apply_judgment(
+        LineState(key="flagship"),
+        make_judgment(release_date="2026-10-29"),
+        "2026-10-29",
+    )
+    assert new.model == "gpt-5.2"
+    assert new.release_date == "2026-10-29"
+    assert new.status == "ok"
+    assert new.last_verified == "2026-10-29"
+
+
 def test_finalize_state_rearms_ok_line():
     """复核收尾：ok 线刷新 last_verified（重臂），status 不变。"""
     state = LineState(
@@ -754,6 +835,7 @@ def test_finalize_state_freezes_pending_after_seven_days():
     assert due.status == "stale-baseline"
     assert due.pending_days == 7  # 冻结保留计数供审计
     assert due.reason
+    assert due.last_verified == "2026-10-29"  # 冻结即重臂（stale 窗口不再永真）
     overdue = finalize_state(
         LineState(key="flagship", status="pending", pending_days=9), "2026-10-29"
     )
@@ -766,8 +848,9 @@ def test_finalize_state_freezes_pending_after_seven_days():
     assert short.last_verified is None  # 未冻结不刷 last_verified
 
 
-def test_finalize_state_keeps_frozen_line_untouched():
-    """已冻结线收尾完全不变（保持冻结态，不刷新 last_verified）。"""
+def test_finalize_state_keeps_frozen_status_but_rearms_last_verified():
+    """已冻结线收尾：status 保持 stale-baseline 不变，但 last_verified 重臂为 today
+    （防 _line_is_stale 永真 → detect_review 每日重触发该厂商烧配额，spec §7.2）。"""
     state = LineState(
         key="sub",
         status="stale-baseline",
@@ -775,7 +858,24 @@ def test_finalize_state_keeps_frozen_line_untouched():
         pending_days=60,
         last_verified="2026-08-01",
     )
-    assert finalize_state(state, "2026-10-29") == state
+    new = finalize_state(state, "2026-10-29")
+    assert new.status == "stale-baseline"  # 冻结态不变
+    assert new.reason == "pending 连续 7 天未决，冻结"
+    assert new.pending_days == 60
+    assert new.last_verified == "2026-10-29"  # 仅重臂
+    assert state.last_verified == "2026-08-01"  # 纯函数
+
+
+def test_frozen_line_does_not_retrigger_stale_same_day():
+    """冻结当日起 max(release, last_verified)=today：detect_review 不再因该线触发 stale。"""
+    config = make_dir_config()
+    frozen = finalize_state(
+        LineState(key="flagship", status="pending", pending_days=7), "2026-10-29"
+    )
+    baseline = Baseline(
+        date="2026-10-29", vendors=[VendorState(id="openai", lines=[frozen])]
+    )
+    assert detect_review(config, baseline, {}, "2026-10-29") == {}
 
 
 def test_update_seen_only_terminal_entries_enter_seen():
