@@ -9,6 +9,7 @@ from free_model_spider.net import request_with_retries
 DEFAULT_API_BASE = "https://openrouter.ai/api/v1"
 DEFAULT_MODEL = "qwen/qwen3.8-27b:free"
 DEFAULT_FALLBACKS = "nvidia/nemotron-3-ultra-550b-a55b:free,google/gemma-4-31b-it:free"
+LLM_TIMEOUT_SECONDS = 300  # 单次 LLM 请求超时：每请求覆盖共享 client 的 60s（长推理不误杀）
 
 
 class LLMError(RuntimeError):
@@ -23,13 +24,16 @@ class LLMClient:
         model: str,
         fallback_models: list[str],
         client: httpx.Client | None = None,
+        timeout: float = LLM_TIMEOUT_SECONDS,
         sleep: Callable[[float], None] = time.sleep,
     ):
         self.api_base = api_base.rstrip("/")
         self.api_key = api_key
         self.model = model
         self.fallback_models = fallback_models
-        self.client = client or httpx.Client(timeout=120)
+        self.timeout = timeout
+        # 注入的共享 client（60s）之上按请求覆盖为 self.timeout；独立使用时同值兜底
+        self.client = client or httpx.Client(timeout=timeout)
         self._sleep = sleep
 
     def complete(self, system: str, user: str) -> str:
@@ -55,6 +59,7 @@ class LLMClient:
                 ],
                 "temperature": 0.2,
             },
+            timeout=self.timeout,
             sleep=self._sleep,
         )
         return resp.json()["choices"][0]["message"]["content"]

@@ -54,6 +54,16 @@ def test_malformed_200_body_falls_through_to_llm_error():
         llm.complete("sys", "user")
 
 
+@respx.mock
+def test_complete_sends_300s_per_request_timeout():
+    """LLM 单独 300s 超时（每请求覆盖共享 client 的 60s，长推理不误杀）。"""
+    route = respx.post(URL).mock(return_value=httpx.Response(200, json=chat_content("ok")))
+    llm = LLMClient(api_base="https://openrouter.ai/api/v1", api_key="k", model="m/a:free",
+                    fallback_models=[])
+    llm.complete("sys", "user")
+    assert route.calls.last.request.extensions["timeout"]["read"] == 300.0
+
+
 def test_build_client_env(monkeypatch):
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     assert build_llm_client() is None
