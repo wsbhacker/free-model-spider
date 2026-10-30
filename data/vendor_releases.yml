@@ -1,12 +1,21 @@
-# 厂商大模型新鲜度统计配置（spec §5，2026-10-29-vendor-release-stats-design.md §5.1）
-# 厂商顺序 = 报告展示顺序（海外在前、国内在后）；增删厂商只改此文件。
-# match/exclude 为目录门铃粗筛（regex，any-of）；产品线归属最终由 LLM 裁决。
+# 厂商大模型新鲜度统计配置（v2 spec：2026-10-30-vendor-official-crawl-redesign.md §3/§4）
+# 厂商顺序 = 报告展示顺序；v2 范围 8 家（御三家 + deepseek/kimi/glm/qwen/minimax；
+# 阶跃星辰用户 2026-10-30 决策移除）。
+# match/exclude 为公告条目与目录条目的门筛（regex，any-of，按线独立生效）；
+# 行归属歧义与文章页提取由 LLM 裁决；日期真值 = 官网公告文章页。
+# 自动化 5 家：anthropic/google/deepseek/zhipu/minimax（有公告源）；
+# 降级 3 家：openai/qwen/moonshot（官网无可爬公告源 → 目录审计 + override 兜底）。
+# meta/xai/mistral/cohere/bytedance/tencent/stepfun 暂移出（v1 配置见 git 历史 1bc99af）。
 stale_days: 45
 vendors:
   - id: openai
     name: OpenAI
     official_domains: [openai.com]
     directory_slugs: { openrouter: [openai, "~openai"], modelsdev: [openai] }
+    announcements:
+      # 2026-10-30 探测：changelog 静态 HTML 仅含 2025 旧条目（新条目 JS 渲染）、
+      # openai.com 主站 403、帮助中心 403 → 暂无可用公告源，走目录审计 + override 兜底
+      []
     lines:
       - key: flagship
         name: GPT 主线
@@ -19,6 +28,9 @@ vendors:
     name: Anthropic
     official_domains: [anthropic.com]
     directory_slugs: { openrouter: [anthropic], modelsdev: [anthropic] }
+    announcements:
+      - { name: 新闻 sitemap, url: "https://www.anthropic.com/sitemap.xml",
+          mode: sitemap, include: "/news/" }
     lines:
       - key: flagship
         name: Claude Opus
@@ -32,6 +44,9 @@ vendors:
     name: Google DeepMind
     official_domains: [blog.google, deepmind.google, ai.google.dev]
     directory_slugs: { openrouter: [google], modelsdev: [google] }
+    announcements:
+      - { name: Gemini API 更新日志, url: "https://ai.google.dev/gemini-api/docs/changelog",
+          mode: headings }
     lines:
       - key: flagship
         name: Gemini 主线
@@ -40,50 +55,12 @@ vendors:
       - key: sub
         name: Gemini Flash
         match: ['gemini-\d[\d.]*-?flash']
-  - id: meta
-    name: Meta
-    official_domains: [ai.meta.com, llama.com]
-    directory_slugs: { openrouter: [meta-llama, meta], modelsdev: [meta] }
-    lines:
-      - key: flagship
-        name: Llama 主线
-        match: ['llama-?\d']
-        exclude: [guard, prompt-guard, image, video, audio, embed]
-  - id: xai
-    name: xAI
-    official_domains: [x.ai]
-    directory_slugs: { openrouter: [x-ai], modelsdev: [xai] }
-    lines:
-      - key: flagship
-        name: Grok 主线
-        match: ['grok-\d']
-        exclude: [image, video, audio, embed, guard, translate, vision]
-  - id: mistral
-    name: Mistral
-    official_domains: [mistral.ai]
-    directory_slugs: { openrouter: [mistralai], modelsdev: [mistral] }
-    lines:
-      - key: flagship
-        name: Mistral Large
-        match: ['mistral-large']
-        exclude: [medium, small, nemo, saba, image, video, audio, embed, guard, translate]
-      - key: sub
-        name: Mistral 中杯（Medium/Ministral）
-        match: ['mistral-medium', 'ministral']
-        exclude: [small, image, video, audio, embed, guard, translate]
-  - id: cohere
-    name: Cohere
-    official_domains: [cohere.com]
-    directory_slugs: { openrouter: [cohere], modelsdev: [cohere] }
-    lines:
-      - key: flagship
-        name: Command 主线
-        match: ['command']
-        exclude: [embed, rerank, image, video, audio, guard, translate]
   - id: deepseek
     name: DeepSeek
     official_domains: [deepseek.com, api-docs.deepseek.com]
     directory_slugs: { openrouter: [deepseek], modelsdev: [deepseek] }
+    announcements:
+      - { name: 更新日志, url: "https://api-docs.deepseek.com/updates", mode: headings }
     lines:
       - key: flagship
         name: DeepSeek V/R 主线
@@ -97,6 +74,10 @@ vendors:
     name: 阿里 Qwen
     official_domains: [qwen.ai, qwenlm.github.io]
     directory_slugs: { openrouter: [qwen], modelsdev: [alibaba] }
+    announcements:
+      # 2026-10-30 探测：qwenlm.github.io/blog 已改为跳转壳（迁 qwen.ai），
+      # qwen.ai 全站 SPA（robots/sitemap 均返回 HTML）→ 暂无可用公告源，走目录审计 + override 兜底
+      []
     lines:
       - key: flagship
         name: Qwen Max/旗舰
@@ -110,6 +91,10 @@ vendors:
     name: 月之暗面
     official_domains: [moonshot.cn, moonshot.ai]
     directory_slugs: { openrouter: [moonshotai], modelsdev: [moonshotai] }
+    announcements:
+      # 2026-10-30 探测：changelog 正文日期不落 HTML（kimi/docs 迁 platform.kimi.com 后
+      # 为 JS 渲染）→ 暂无可用公告源，走目录审计 + override 兜底（v2 spec §6）
+      []
     lines:
       - key: flagship
         name: Kimi K 主线
@@ -123,6 +108,8 @@ vendors:
     name: 智谱 AI
     official_domains: [z.ai, bigmodel.cn, zhipuai.cn]
     directory_slugs: { openrouter: [z-ai], modelsdev: [zai, zhipuai] }
+    announcements:
+      - { name: 发布说明, url: "https://docs.z.ai/release-notes/new-released", mode: headings }
     lines:
       - key: flagship
         name: GLM 主线
@@ -135,6 +122,9 @@ vendors:
     name: MiniMax
     official_domains: [minimax.io, minimaxi.com]
     directory_slugs: { openrouter: [minimax], modelsdev: [minimax] }
+    announcements:
+      - { name: 新闻 sitemap, url: "https://minimax.io/sitemap.xml",
+          mode: sitemap, include: "/(news|blog)/" }
     lines:
       - key: flagship
         name: MiniMax M 主线
@@ -144,30 +134,3 @@ vendors:
         name: M Flash
         match: ['minimax-m\d[\d.]*-?flash']
         exclude: [image, video, audio, embed, guard, translate, speech, music, vl]
-  - id: bytedance
-    name: 字节 Seed
-    official_domains: [seed.bytedance.com, team.doubao.com]
-    directory_slugs: { openrouter: [bytedance-seed], modelsdev: [volcengine] }
-    lines:
-      - key: flagship
-        name: Seed/豆包主力
-        match: ['doubao', 'seed']
-        exclude: [seedream, seedance, seededit, ui-tars, code, vision, asr, tts, speech, image, video, audio, embed, guard, translate]
-  - id: tencent
-    name: 腾讯混元
-    official_domains: [hy.woa.com, cloud.tencent.com]
-    directory_slugs: { openrouter: [tencent], modelsdev: [tencent-tokenhub, tencent-coding-plan] }
-    lines:
-      - key: flagship
-        name: Hunyuan 主线
-        match: ['hunyuan', 'hy\d']
-        exclude: [hy-mt, image, video, audio, embed, guard, translate, vision, speech, tts, asr, 3d]
-  - id: stepfun
-    name: 阶跃星辰
-    official_domains: [stepfun.com, platform.stepfun.com]
-    directory_slugs: { openrouter: [stepfun], modelsdev: [stepfun] }
-    lines:
-      - key: flagship
-        name: Step 主线
-        match: ['step-\d']
-        exclude: [image, video, audio, embed, guard, translate, vision, speech, tts, asr]

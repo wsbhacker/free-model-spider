@@ -12,18 +12,11 @@ EXPECTED_IDS = [
     "openai",
     "anthropic",
     "google",
-    "meta",
-    "xai",
-    "mistral",
-    "cohere",
     "deepseek",
     "qwen",
     "moonshot",
     "zhipu",
     "minimax",
-    "bytedance",
-    "tencent",
-    "stepfun",
 ]
 
 VALID_YAML = r"""

@@ -15,8 +15,22 @@ class Override(BaseModel):
     source: str
 
 
+class AnnouncementSource(BaseModel):
+    """官方公告源：官网爬取主通道的数据入口（v2 spec §3/§4）。
+
+    mode 决定解析器：sitemap（loc+lastmod）/ headings（日期节+模型子节）/
+    links（锚点+邻近日期）/ json（script 内 title+日期键对）。
+    include 仅 sitemap 模式用：URL path 过滤正则（如 ``/news/``）。
+    """
+
+    name: str
+    url: str
+    mode: Literal["sitemap", "headings", "links", "json"] = "links"
+    include: str | None = None
+
+
 class LineConfig(BaseModel):
-    """产品线定义：match/exclude 是目录门铃的粗筛（regex，any-of）。"""
+    """产品线定义：match/exclude 是公告条目与目录条目的门筛（regex，any-of，按线独立）。"""
 
     key: Literal["flagship", "sub"]
     name: str
@@ -31,6 +45,7 @@ class VendorConfig(BaseModel):
     official_domains: list[str] = Field(min_length=1)
     directory_slugs: dict[str, list[str]] = Field(min_length=1)
     lines: list[LineConfig] = Field(min_length=1)
+    announcements: list[AnnouncementSource] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _check_lines(self) -> "VendorConfig":

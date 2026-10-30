@@ -1,13 +1,16 @@
-"""LLM 裁决管线：防捏造 prompt 基座、条目归类、官方域搜索提取、页面原文二次确认。
+"""LLM 裁决管线：防捏造 prompt 基座、条目归类、官方文章页提取（v2，spec §4）。
 
-所有 LLM 调用共用 SYSTEM_PROMPT（spec §7.1 五条硬约束），程序侧 validate_judgment
-兜底校验 evidence 与官方域白名单——不信任提示词，校验不过一律降级 None（pending）。
+所有 LLM 调用共用 SYSTEM_PROMPT（v1 spec §7.1 五条硬约束），程序侧
+validate_judgment 兜底校验 evidence 与官方域白名单——不信任提示词，
+校验不过一律降级 None（pending）。
+
+v2 变更：Brave 搜索链路移除。日期真值 = 官网公告文章页原文，
+extract_from_article 抓页面正文一次性提取 model/release_date。
 """
 
 import json
 import re
-import time
-from collections.abc import Callable
+from html import unescape
 from urllib.parse import urlsplit
 
 import httpx
@@ -16,7 +19,6 @@ from pydantic import BaseModel, Field
 from free_model_spider.core.vendor_config import LineConfig, VendorConfig
 from free_model_spider.llm.client import LLMClient, LLMError
 from free_model_spider.net import request_with_retries
-from free_model_spider.search.base import SearchProvider, SearchResult
 
 SYSTEM_PROMPT = (
     "你是大模型发布信息核查员，任务是从给定材料中提取可验证的事实。"
@@ -33,15 +35,17 @@ SYSTEM_PROMPT = (
     "5. 只输出用户消息所约定 schema 的单个 JSON 对象，不输出任何多余文字。"
 )
 
-SEARCH_INTERVAL_SECONDS = 1.1  # 官方域搜索限速间隔（spec §7）
-SEARCH_COUNT = 8
-PAGE_TEXT_LIMIT = 8000
+ARTICLE_TEXT_LIMIT = 12000  # 文章页正文截断（导航噪声在前，日期通常在首个内容屏）
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _VALID_CATEGORIES = {"flagship", "sub", "ignore"}
 
+_SCRIPT_STYLE_RE = re.compile(r"<(script|style|noscript)\b.*?</\1>", re.S | re.I)
+_TAG_RE = re.compile(r"<[^>]+>")
+_WS_RE = re.compile(r"\s+")
+
 
 class Judgment(BaseModel):
-    """单条产品线的 LLM 裁决结果（提取/确认共用）。"""
+    """单条产品线的 LLM 裁决结果。"""
 
     model: str | None = None
     release_date: str | None = None
@@ -129,16 +133,6 @@ def _clean_str_list(value: object) -> list[str]:
     return [str(item).strip() for item in value if str(item).strip()]
 
 
-def _judgment_from_parsed(parsed: dict) -> Judgment:
-    return Judgment(
-        model=_clean_str(parsed.get("model")),
-        release_date=_clean_str(parsed.get("release_date")),
-        source_urls=_clean_str_list(parsed.get("source_urls")),
-        evidence=_clean_str_list(parsed.get("evidence")),
-        reason=str(parsed.get("reason") or ""),
-    )
-
-
 def _lines_block(vendor: VendorConfig) -> str:
     return "\n".join(
         f"- {line.key}：{line.name}（匹配正则：{line.match}，排除：{line.exclude or '无'}）"
@@ -146,143 +140,96 @@ def _lines_block(vendor: VendorConfig) -> str:
     )
 
 
-def _classify_user_prompt(vendor: VendorConfig, entry_id: str) -> str:
+def _classify_user_prompt(vendor: VendorConfig, entry_title: str) -> str:
     return (
         f"厂商：{vendor.name}\n"
         f"产品线定义：\n{_lines_block(vendor)}\n"
-        f"目录新条目 id：{entry_id}\n"
-        "任务：只依据以上材料判断该条目归属哪条产品线；"
-        "ignore 表示衍生专用/第三方挂靠模型（不属于任何线）。\n"
+        f"官方公告标题：{entry_title}\n"
+        "任务：只依据以上材料判断该公告归属哪条产品线；"
+        "ignore 表示非模型发布公告（活动/政策/研究/招聘等）或衍生专用模型（不属于任何线）。\n"
         '只输出一个 JSON 对象：{"category": "flagship|sub|ignore", "reason": "一句话理由"}'
     )
 
 
-def _extract_user_prompt(vendor: VendorConfig, line: LineConfig, results: list[SearchResult]) -> str:
+def _article_user_prompt(
+    vendor: VendorConfig, line: LineConfig, url: str, page_text: str
+) -> str:
     domains = "、".join(vendor.official_domains)
-    rows = [f"- {r.title} | {r.url} | {r.snippet}" for r in results] or ["-（无）"]
     return (
         f"厂商：{vendor.name}（官方域白名单：{domains}）\n"
         f"目标产品线：{line.name}（key={line.key}）\n"
-        "搜索结果：\n" + "\n".join(rows) + "\n"
-        "任务：只依据以上搜索结果，提取该厂商此产品线最新发布的模型名称与发布日期。\n"
-        '只输出一个 JSON 对象：{"model": "模型名或null", "release_date": "YYYY-MM-DD或null", '
-        '"source_urls": ["材料中出现的官方域URL"], "evidence": ["材料原文摘句或URL"], '
-        '"reason": "材料不足时说明"}'
-    )
-
-
-def _confirm_user_prompt(url: str, page_text: str) -> str:
-    return (
-        f"官方页面原文（URL：{url}）：\n{page_text}\n"
-        "任务：只依据以上页面原文，提取该页面发布的模型名称与发布日期（YYYY-MM-DD）。\n"
+        f"官方公告页原文（URL：{url}）：\n{page_text}\n"
+        "任务：只依据以上页面原文，提取该公告发布的模型名称与发布日期（YYYY-MM-DD）。"
+        "页面原文里没有的日期一律输出 null，禁止从 URL 或模型名推算。\n"
         '只输出一个 JSON 对象：{"model": "模型名或null", "release_date": "YYYY-MM-DD或null", '
         '"evidence": ["页面原文摘句"], "reason": "页面未包含时说明"}'
     )
 
 
-def classify_entry(llm: LLMClient | None, vendor: VendorConfig, entry_id: str) -> tuple[str, str]:
-    """目录新条目归类：返回 ('flagship'|'sub'|'ignore', reason)；不可用/失败降级 ('pending', '')。"""
+def classify_entry(llm: LLMClient | None, vendor: VendorConfig, entry_title: str) -> tuple[str, str]:
+    """公告条目归类：返回 ('flagship'|'sub'|'ignore', reason)；不可用/失败降级 ('pending', '')。"""
     if llm is None:
         return "pending", ""
     parsed = _complete_json(
-        llm, _classify_user_prompt(vendor, entry_id),
-        context=f"classify {vendor.id}/{entry_id}",
+        llm, _classify_user_prompt(vendor, entry_title),
+        context=f"classify {vendor.id}/{entry_title[:60]}",
     )
     if parsed is None:
         return "pending", ""
     category = _clean_str(parsed.get("category"))
     if category is None or category.lower() not in _VALID_CATEGORIES:
-        print(f"vendors: {vendor.id}/{entry_id} 归类输出非法类别：{category!r}")
+        print(f"vendors: {vendor.id} 公告归类输出非法类别：{category!r}")
         return "pending", ""
     return category.lower(), str(parsed.get("reason") or "")
 
 
-def extract_line(
-    llm: LLMClient | None,
-    search: SearchProvider | None,
-    vendor: VendorConfig,
-    line: LineConfig,
-    search_sleep: float | Callable[[float], None] | None = None,
-) -> tuple[Judgment | None, list[SearchResult]]:
-    """官方域搜索 + LLM 提取单条产品线裁决。
-
-    search 为 None/异常 → (None, [])；LLM 失败、解析失败、validate 不过或材料不足
-    → (None, results)（材料不足降级 pending，绝不产出无日期的空裁决流入下游）。
-    search_sleep：限速——数值按秒 sleep，可调用对象注入 SEARCH_INTERVAL_SECONDS。
-    """
-    if search is None:
-        return None, []
-    query = (
-        " OR ".join(f"site:{d}" for d in vendor.official_domains[:3])
-        + f" {vendor.name} {line.name} 发布"
-    )
-    try:
-        results = search.search(query, count=SEARCH_COUNT)
-    except Exception as exc:
-        print(f"vendors: {vendor.id}/{line.key} 官方域搜索失败：{exc!r}")
-        return None, []
-    print(f"vendors: {vendor.id}/{line.key} 搜索命中 {len(results)} 条：{query}")
-    if isinstance(search_sleep, (int, float)):
-        time.sleep(search_sleep)
-    elif search_sleep is not None:
-        search_sleep(SEARCH_INTERVAL_SECONDS)
-    if llm is None:
-        return None, results
-    parsed = _complete_json(
-        llm, _extract_user_prompt(vendor, line, results),
-        context=f"extract {vendor.id}/{line.key}",
-    )
-    if parsed is None:
-        return None, results
-    judgment = _judgment_from_parsed(parsed)
-    if judgment.model is None or judgment.release_date is None:
-        print(f"vendors: {vendor.id}/{line.key} 提取材料不足："
-              f"{judgment.reason or '模型/日期为 null'}")
-        return None, results
-    if not validate_judgment(judgment, vendor.official_domains):
-        print(f"vendors: {vendor.id}/{line.key} 裁决未过校验："
-              f"model={judgment.model} date={judgment.release_date} "
-              f"urls={judgment.source_urls}")
-        return None, results
-    return judgment, results
+def strip_html(html: str) -> str:
+    """剥 script/style/noscript 与全部标签，反转义并折叠空白（列表/文章共用）。"""
+    cleaned = _SCRIPT_STYLE_RE.sub(" ", html)
+    cleaned = _TAG_RE.sub(" ", cleaned)
+    return _WS_RE.sub(" ", unescape(cleaned)).strip()
 
 
-def confirm_from_page(
+def extract_from_article(
     llm: LLMClient | None,
     client: httpx.Client,
     vendor: VendorConfig,
-    judgment: Judgment,
+    line: LineConfig,
+    url: str,
 ) -> Judgment | None:
-    """二次确认：抓取 source_urls[0] 页面原文，LLM 从原文重新提取并校验。
+    """抓官方公告文章页原文，LLM 一次性提取 model/release_date 并校验。
 
-    任何失败（网络、LLM、解析、原文不含日期、validate 不过）→ None，保留旧基线。
+    任何失败（网络、LLM、解析、无日期、validate 不过）→ None，保留旧基线转 pending。
+    source_urls 固定回填被抓取的公告页 URL（官方域白名单已在 validate 兜底）。
     """
-    if llm is None or not judgment.source_urls:
+    if llm is None:
         return None
-    url = judgment.source_urls[0]
     try:
         resp = request_with_retries(client, "GET", url, follow_redirects=True)
     except Exception as exc:
-        print(f"vendors: 二次确认抓取失败 {url}：{exc!r}")
+        print(f"vendors: {vendor.id}/{line.key} 公告页抓取失败 {url}：{exc!r}")
         return None
     parsed = _complete_json(
-        llm, _confirm_user_prompt(url, resp.text[:PAGE_TEXT_LIMIT]),
-        context=f"confirm {url}",
+        llm,
+        _article_user_prompt(vendor, line, url, strip_html(resp.text)[:ARTICLE_TEXT_LIMIT]),
+        context=f"extract {vendor.id}/{line.key}",
     )
     if parsed is None:
         return None
-    confirmed = Judgment(
+    judgment = Judgment(
         model=_clean_str(parsed.get("model")),
         release_date=_clean_str(parsed.get("release_date")),
         evidence=_clean_str_list(parsed.get("evidence")),
         source_urls=[url],
         reason=str(parsed.get("reason") or ""),
     )
-    if confirmed.model is None or confirmed.release_date is None:
-        print(f"vendors: 二次确认页面无模型/日期 {url}："
-              f"{confirmed.reason or '字段为 null'}")
+    if judgment.model is None or judgment.release_date is None:
+        print(f"vendors: {vendor.id}/{line.key} 公告页未含模型/日期 {url}："
+              f"{judgment.reason or '字段为 null'}")
         return None
-    if not validate_judgment(confirmed, vendor.official_domains):
-        print(f"vendors: 二次确认未过校验 {url}：evidence={confirmed.evidence}")
+    if not validate_judgment(judgment, vendor.official_domains):
+        print(f"vendors: {vendor.id}/{line.key} 提取未过校验 {url}："
+              f"model={judgment.model} date={judgment.release_date} "
+              f"evidence={judgment.evidence}")
         return None
-    return confirmed
+    return judgment

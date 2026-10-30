@@ -21,14 +21,12 @@ from free_model_spider.core.vendor_stats import (
     baseline_path,
     collect_directory_entries,
     days_since,
-    detect_review,
     empty_baseline,
     finalize_state,
     find_latest_baseline,
     load_baseline,
     save_baseline,
     screen_new_entries,
-    update_seen,
 )
 
 
@@ -109,6 +107,7 @@ def test_save_and_load_roundtrip_preserves_structure(tmp_path):
     assert [v.id for v in loaded.vendors] == ["openai", "meta"]
     openai = loaded.vendors[0]
     assert openai.seen_directory_ids == ["gpt-5.1", "gpt-5.1-mini"]
+    assert openai.seen_announcement_urls == []  # v2 字段默认空，roundtrip 不丢
     assert [line.key for line in openai.lines] == ["flagship", "sub"]
     assert openai.lines[0].model == "gpt-5.1"
     assert openai.lines[0].release_date == "2026-10-26"
@@ -369,228 +368,46 @@ def test_screen_new_entries_override_line_not_participating():
     assert new == ["openai/gpt-5.2-mini"]
 
 
-def test_detect_review_new_entry_triggers():
-    config = make_dir_config()
-    baseline = Baseline(
-        date="2026-10-29",
-        vendors=[
-            VendorState(
-                id="openai",
-                seen_directory_ids=["openai/gpt-5.1", "openai/gpt-5.1-mini"],
-                lines=[
-                    LineState(
-                        key="flagship",
-                        release_date="2026-10-20",
-                        last_verified="2026-10-29",
-                        status="ok",
-                    )
-                ],
-            )
+def test_screen_new_entries_per_line_exclude_does_not_kill_other_lines():
+    """v2 修复钉子：旗舰 exclude 里的 flash 不得误杀 sub 线候选（v1 并集 bug，
+    9 家厂商次旗舰线被全部误杀——deepseek flash 条目被旗舰 exclude=flash 挡掉）。"""
+    vendor = VendorConfig(
+        id="deepseek",
+        name="DeepSeek",
+        official_domains=["deepseek.com"],
+        directory_slugs={"openrouter": ["deepseek"]},
+        lines=[
+            LineConfig(
+                key="flagship",
+                name="DeepSeek V/R 主线",
+                match=[r"deepseek-(v\d|r\d|chat|reasoner)"],
+                exclude=["flash", "coder", "vision"],
+            ),
+            LineConfig(
+                key="sub",
+                name="DeepSeek Flash",
+                match=[r"deepseek-(v[\d.]+|[\d.]+)-?flash"],
+                exclude=["coder", "vision"],
+            ),
         ],
     )
-    reasons = detect_review(config, baseline, {"openai": ["openai/gpt-5.2"]}, "2026-10-29")
-    assert reasons == {"openai": ["new-entry"]}
-
-
-def test_detect_review_exclude_blocks_trigger():
-    config = make_dir_config()
-    baseline = Baseline(
-        date="2026-10-29",
-        vendors=[
-            VendorState(
-                id="google",
-                seen_directory_ids=[],
-                lines=[
-                    LineState(
-                        key="flagship",
-                        release_date="2026-10-20",
-                        last_verified="2026-10-29",
-                        status="ok",
-                    ),
-                    LineState(
-                        key="sub",
-                        release_date="2026-10-20",
-                        last_verified="2026-10-29",
-                        status="ok",
-                    ),
-                ],
-            )
-        ],
+    new = screen_new_entries(
+        vendor, VendorState(id="deepseek"),
+        ["deepseek/deepseek-v4.1-flash", "deepseek/deepseek-v4-pro"],
     )
-    # gemini-4-image 命中旗舰 regex，但被 flash 之外的线（旗舰）的 exclude=image 挡住
-    reasons = detect_review(config, baseline, {"google": ["google/gemini-4-image"]}, "2026-10-29")
-    assert reasons == {}
+    assert set(new) == {
+        "deepseek/deepseek-v4.1-flash",  # 只命中 sub（不被旗舰的 exclude=flash 误杀）
+        "deepseek/deepseek-v4-pro",      # 只命中 flagship
+    }
 
 
-def test_detect_review_modelsdev_entry_without_match_no_trigger():
-    config = make_dir_config()
-    baseline = Baseline(
-        date="2026-10-29",
-        vendors=[
-            VendorState(
-                id="mistral",
-                lines=[
-                    LineState(
-                        key="flagship",
-                        release_date="2026-10-20",
-                        last_verified="2026-10-29",
-                        status="ok",
-                    )
-                ],
-            )
-        ],
-    )
-    # mistral:deepseek-v4-1-flash 挂靠在 mistral 厂商下，但不命中其 lines → 不触发
-    reasons = detect_review(
-        config, baseline, {"mistral": ["mistral:deepseek-v4-1-flash"]}, "2026-10-29"
-    )
-    assert reasons == {}
 
 
-def test_detect_review_stale_triggers_then_rearm_after_review():
-    config = make_dir_config()
-
-    def make_state(last_verified: str) -> VendorState:
-        return VendorState(
-            id="openai",
-            lines=[
-                LineState(
-                    key="flagship",
-                    model="gpt-5.1",
-                    release_date="2026-08-01",
-                    last_verified=last_verified,
-                    status="ok",
-                )
-            ],
-        )
-
-    # today - max(release_date, last_verified) = 2026-10-29 - 2026-08-10 = 80 > 45
-    stale = detect_review(config, Baseline(date="2026-10-29", vendors=[make_state("2026-08-10")]), {}, "2026-10-29")
-    assert stale == {"openai": ["stale"]}
-    # 复核刷新 last_verified 后不再触发
-    rearmed = detect_review(config, Baseline(date="2026-10-29", vendors=[make_state("2026-10-29")]), {}, "2026-10-29")
-    assert rearmed == {}
 
 
-def test_detect_review_stale_triggers_on_any_line_over_window():
-    """spec §6.2：厂商任一线超窗即触发 stale（次旗舰超窗、旗舰新鲜也要复核）。"""
-    config = make_dir_config()
-    baseline = Baseline(
-        date="2026-10-29",
-        vendors=[
-            VendorState(
-                id="google",
-                lines=[
-                    LineState(  # 旗舰新鲜
-                        key="flagship",
-                        release_date="2026-10-20",
-                        last_verified="2026-10-29",
-                        status="ok",
-                    ),
-                    LineState(  # 次旗舰超窗
-                        key="sub",
-                        release_date="2026-06-01",
-                        last_verified="2026-06-01",
-                        status="ok",
-                    ),
-                ],
-            )
-        ],
-    )
-    assert detect_review(config, baseline, {}, "2026-10-29") == {"google": ["stale"]}
 
 
-def test_detect_review_stale_not_triggered_when_all_lines_fresh():
-    """双线都新鲜 → 不触发 stale。"""
-    config = make_dir_config()
-    baseline = Baseline(
-        date="2026-10-29",
-        vendors=[
-            VendorState(
-                id="google",
-                lines=[
-                    LineState(
-                        key="flagship",
-                        release_date="2026-10-20",
-                        last_verified="2026-10-29",
-                        status="ok",
-                    ),
-                    LineState(
-                        key="sub",
-                        release_date="2026-10-20",
-                        last_verified="2026-10-29",
-                        status="ok",
-                    ),
-                ],
-            )
-        ],
-    )
-    assert detect_review(config, baseline, {}, "2026-10-29") == {}
 
-
-def test_detect_review_override_exempts_stale():
-    config = VendorReleasesConfig(
-        stale_days=45,
-        vendors=[
-            VendorConfig(
-                id="openai",
-                name="OpenAI",
-                official_domains=["openai.com"],
-                directory_slugs={"openrouter": ["openai"]},
-                lines=[
-                    LineConfig(
-                        key="flagship",
-                        name="GPT 主线",
-                        match=[r"gpt-\d"],
-                        override=Override(model="gpt-5.1", release_date="2026-05-01", source="人工核定"),
-                    ),
-                ],
-            )
-        ],
-    )
-    baseline = Baseline(
-        date="2026-10-29",
-        vendors=[
-            VendorState(
-                id="openai",
-                lines=[
-                    LineState(key="flagship", model="gpt-5.1", release_date="2026-05-01", status="ok")
-                ],
-            )
-        ],
-    )
-    assert detect_review(config, baseline, {}, "2026-10-29") == {}
-
-
-def test_detect_review_first_day_empty_baseline_all_stale():
-    config = make_dir_config()
-    baseline = empty_baseline("2026-10-29", config)
-    reasons = detect_review(config, baseline, {}, "2026-10-29")
-    assert reasons == {vendor.id: ["stale"] for vendor in config.vendors}
-
-
-def test_detect_review_new_entry_and_stale_together():
-    config = make_dir_config()
-    baseline = Baseline(
-        date="2026-10-29",
-        vendors=[
-            VendorState(
-                id="openai",
-                seen_directory_ids=["openai/gpt-5.1"],
-                lines=[
-                    LineState(
-                        key="flagship",
-                        model="gpt-5.1",
-                        release_date="2026-08-01",
-                        last_verified="2026-08-10",
-                        status="ok",
-                    )
-                ],
-            )
-        ],
-    )
-    reasons = detect_review(config, baseline, {"openai": ["openai/gpt-5.2"]}, "2026-10-29")
-    assert reasons == {"openai": ["new-entry", "stale"]}
 
 
 # --------------------------------------------------------------------------
@@ -866,101 +683,7 @@ def test_finalize_state_keeps_frozen_status_but_rearms_last_verified():
     assert state.last_verified == "2026-08-01"  # 纯函数
 
 
-def test_frozen_line_does_not_retrigger_stale_same_day():
-    """冻结当日起 max(release, last_verified)=today：detect_review 不再因该线触发 stale。"""
-    config = make_dir_config()
-    frozen = finalize_state(
-        LineState(key="flagship", status="pending", pending_days=7), "2026-10-29"
-    )
-    baseline = Baseline(
-        date="2026-10-29", vendors=[VendorState(id="openai", lines=[frozen])]
-    )
-    assert detect_review(config, baseline, {}, "2026-10-29") == {}
 
 
-def test_update_seen_only_terminal_entries_enter_seen():
-    """归类为线且该线裁决结束（ok）的条目入 seen；pending 线与缺 label 的条目不入。"""
-    config = make_config()
-    openai = config.vendors[0]
-    state = VendorState(
-        id="openai",
-        seen_directory_ids=["openai/gpt-5.0"],
-        lines=[
-            LineState(
-                key="flagship",
-                model="gpt-5.1",
-                release_date="2026-10-26",
-                status="ok",
-            ),
-            LineState(key="sub", status="pending", pending_days=1),
-        ],
-    )
-    new_seen = update_seen(
-        openai,
-        state,
-        [
-            "openai/gpt-5.2",  # flagship 线，当日裁决 ok → 入 seen
-            "openai/gpt-5.2-mini",  # sub 线仍 pending → 不入（次日重触发）
-            "openai/gpt-5.3-pro",  # 归类失败（pending）→ 不入
-            "openai/gpt-5.4",  # labels 缺键 → 无终态结论，不入
-        ],
-        {
-            "openai/gpt-5.2": ("flagship", "主线新模型"),
-            "openai/gpt-5.2-mini": ("sub", "次旗舰候选"),
-            "openai/gpt-5.3-pro": ("pending", ""),
-        },
-    )
-    assert "openai/gpt-5.0" in new_seen  # 旧 seen 保留
-    assert "openai/gpt-5.2" in new_seen
-    assert "openai/gpt-5.2-mini" not in new_seen
-    assert "openai/gpt-5.3-pro" not in new_seen
-    assert "openai/gpt-5.4" not in new_seen
-    assert state.seen_directory_ids == ["openai/gpt-5.0"]  # 纯函数：原 state 不变
 
 
-def test_update_seen_ignore_entry_enters_seen():
-    """归类 ignore 即终态：即使两条线都 pending，条目也入 seen。"""
-    config = make_config()
-    openai = config.vendors[0]
-    state = VendorState(
-        id="openai",
-        lines=[
-            LineState(key="flagship", status="pending", pending_days=1),
-            LineState(key="sub", status="pending", pending_days=1),
-        ],
-    )
-    new_seen = update_seen(
-        openai,
-        state,
-        ["openai/gpt-5.2-transcribe"],
-        {"openai/gpt-5.2-transcribe": ("ignore", "语音转写专用，不属于任何线")},
-    )
-    assert new_seen == ["openai/gpt-5.2-transcribe"]
-
-
-def test_update_seen_frozen_line_entries_enter_seen():
-    """冻结（stale-baseline != pending）线的条目入 seen，避免每日重触发烧配额。"""
-    config = make_config()
-    openai = config.vendors[0]
-    state = VendorState(
-        id="openai",
-        lines=[
-            LineState(
-                key="flagship",
-                status="stale-baseline",
-                reason="pending 连续 7 天未决，冻结",
-                pending_days=7,
-            ),
-            LineState(key="sub", status="pending", pending_days=2),
-        ],
-    )
-    new_seen = update_seen(
-        openai,
-        state,
-        ["openai/gpt-5.2", "openai/gpt-5.2-mini"],
-        {
-            "openai/gpt-5.2": ("flagship", ""),
-            "openai/gpt-5.2-mini": ("sub", ""),
-        },
-    )
-    assert new_seen == ["openai/gpt-5.2"]

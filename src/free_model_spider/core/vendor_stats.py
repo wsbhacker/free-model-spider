@@ -10,6 +10,7 @@ import httpx
 from pydantic import BaseModel, Field
 
 from free_model_spider.core.vendor_config import (
+    LineConfig,
     VendorConfig,
     VendorReleasesConfig,
 )
@@ -31,10 +32,11 @@ class LineState(BaseModel):
 
 
 class VendorState(BaseModel):
-    """单个厂商的状态：已见目录 id 集合 + 各产品线状态。"""
+    """单个厂商的状态：已见目录 id 集合、已见公告 URL 集合 + 各产品线状态。"""
 
     id: str
     seen_directory_ids: list[str] = Field(default_factory=list)
+    seen_announcement_urls: list[str] = Field(default_factory=list)
     lines: list[LineState] = Field(default_factory=list)
 
 
@@ -98,13 +100,11 @@ def days_since(release_date: str, today: str) -> int:
 
 
 # --------------------------------------------------------------------------
-# 目录采集与事件检测（Task 3）
+# 目录采集（v2：事件门铃降级为佐证来源，spec §2）
 # --------------------------------------------------------------------------
 
 OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
 MODELS_DEV_API_URL = "https://models.dev/api.json"
-
-_EPOCH_DATE = "1970-01-01"  # release_date/last_verified 全缺时的兜底参考日
 
 
 def collect_directory_entries(
@@ -163,14 +163,13 @@ def collect_directory_entries(
 def screen_new_entries(
     vendor: VendorConfig, state: VendorState, entries: list[str]
 ) -> list[str]:
-    """目录条目粗筛：casefold 后 match 任一 regex 命中、不被任一 exclude 子串挡、
-    且不在 seen_directory_ids 中；返回 casefold 后的新条目 id。
+    """目录条目粗筛（v2 修复 per-line 门筛）：任一非 override 线的 match 命中、
+    且不被**同一条线**的 exclude 挡、且不在 seen_directory_ids 中；
+    返回 casefold 后的新条目 id。
 
-    有 override 的线不参与（其 match/exclude 不进入筛选用集合）。
+    v1 的"所有线 match 并集 AND NOT 所有线 exclude 并集"会把次旗舰关键词
+    （旗舰 exclude 里的 flash/mini 等）误杀掉全部 sub 线候选（9 家厂商中招）。
     """
-    active = [line for line in vendor.lines if line.override is None]
-    match_patterns = [pattern for line in active for pattern in line.match]
-    excludes = [word.casefold() for line in active for word in line.exclude]
     seen = {entry.casefold() for entry in state.seen_directory_ids}
     result: list[str] = []
     picked: set[str] = set()
@@ -178,56 +177,21 @@ def screen_new_entries(
         folded = entry.casefold()
         if folded in seen or folded in picked:
             continue
-        if not any(re.search(pattern, folded) for pattern in match_patterns):
-            continue
-        if any(word in folded for word in excludes):
+        if not any(
+            line.override is None and line_matches(line, folded)
+            for line in vendor.lines
+        ):
             continue
         picked.add(folded)
         result.append(folded)
     return result
 
 
-def _line_reference(line: LineState) -> str:
-    """该线的新鲜度参考日：release_date 与 last_verified 取较大者，全缺用纪元日。"""
-    refs = [d for d in (line.release_date, line.last_verified) if d]
-    return max(refs) if refs else _EPOCH_DATE
-
-
-def _line_is_stale(line: LineState, today: str, stale_days: int) -> bool:
-    age = (date.fromisoformat(today) - date.fromisoformat(_line_reference(line))).days
-    return age > stale_days
-
-
-def detect_review(
-    config: VendorReleasesConfig,
-    baseline: Baseline,
-    entries_by_vendor: dict[str, list[str]],
-    today: str,
-) -> dict[str, list[str]]:
-    """事件检测：返回 vendor_id -> 触发原因列表（'new-entry' / 'stale'）。
-
-    有粗筛后的新目录条目 → new-entry；无 override 的厂商任一线满足
-    ``today - max(release_date, last_verified 或 '1970-01-01') > stale_days``
-    → stale（spec §6.2：任一线超窗即待复核，次旗舰超窗旗舰新鲜也触发）。
-    entries_by_vendor 缺该厂商（目录全失败）时仅按 stale 判定。
-    """
-    states = {v.id: v for v in baseline.vendors}
-    reasons: dict[str, list[str]] = {}
-    for vendor in config.vendors:
-        vendor_reasons: list[str] = []
-        entries = entries_by_vendor.get(vendor.id, [])
-        state = states.get(vendor.id)
-        if state is not None and screen_new_entries(vendor, state, entries):
-            vendor_reasons.append("new-entry")
-        if state is not None and not any(
-            line.override is not None for line in vendor.lines
-        ) and any(
-            _line_is_stale(line, today, config.stale_days) for line in state.lines
-        ):
-            vendor_reasons.append("stale")
-        if vendor_reasons:
-            reasons[vendor.id] = vendor_reasons
-    return reasons
+def line_matches(line: LineConfig, text: str) -> bool:
+    """单条线门筛：match 任一 regex 命中且不被本线 exclude 子串挡（text 需已 casefold）。"""
+    if any(re.search(pattern, text) for pattern in line.match):
+        return not any(word.casefold() in text for word in line.exclude)
+    return False
 
 
 # --------------------------------------------------------------------------
@@ -334,12 +298,10 @@ def finalize_state(state: LineState, today: str) -> LineState:
     """复核日收尾（纯函数）：ok 线重臂、pending 满 7 天冻结，其余原样。
 
     - status='pending' 且 pending_days>=7 → 冻结为 'stale-baseline'
-      （保留 pending_days 供审计，条目此后由 update_seen 收入 seen），
-      同时 last_verified=today 重臂 stale 窗口；
-    - status='ok' → last_verified=today（stale 触发的重臂出口）；
+      （保留 pending_days 供审计），同时 last_verified=today 重臂；
+    - status='ok' → last_verified=today（每日收尾重臂）；
     - status='stale-baseline' → status 不变，last_verified=today 重臂
-      （防 _line_is_stale 永真 → detect_review 每日重触发该厂商烧配额，
-      spec §7.2 冻结目的）；
+      （冻结态不再自动复核，防每日烧配额，v1 spec §7.2 冻结目的）；
     - pending 未满 7 天 → 原样保留（pending_days 只在 apply_judgment 里推进）。
     """
     if state.status == "pending" and state.pending_days >= PENDING_FREEZE_DAYS:
@@ -353,41 +315,3 @@ def finalize_state(state: LineState, today: str) -> LineState:
     if state.status in ("ok", "stale-baseline"):
         return state.model_copy(update={"last_verified": today})
     return state.model_copy()
-
-
-def update_seen(
-    vendor: VendorConfig,
-    state: VendorState,
-    entries: list[str],
-    labels: dict[str, tuple[str, str]],
-) -> list[str]:
-    """更新已见目录 id 集合（纯函数，返回新列表，不改 state）。
-
-    新 seen = 旧 seen + 粗筛候选（内部复用 screen_new_entries，casefold 后）中
-    "有终态结论"的条目：
-    - label 为 'ignore' → 终态（衍生/挂靠模型，不再重触发）；
-    - label 为线 key → 该线当日裁决结束 status != 'pending'（ok 或冻结）才终态；
-    - label 为 'pending'（归类失败）或 labels 缺键 → 无终态结论，不入 seen，
-      次日重新触发。
-    """
-    candidates = screen_new_entries(vendor, state, entries)
-    line_status = {line.key: line.status for line in state.lines}
-    seen: set[str] = set()
-    result: list[str] = []
-    for entry_id in state.seen_directory_ids:
-        folded = entry_id.casefold()
-        if folded not in seen:
-            seen.add(folded)
-            result.append(entry_id)
-    for entry_id in candidates:
-        label = labels.get(entry_id)
-        if label is None:
-            continue
-        category = label[0]
-        terminal = category == "ignore" or (
-            category in line_status and line_status[category] != "pending"
-        )
-        if terminal and entry_id.casefold() not in seen:
-            seen.add(entry_id.casefold())
-            result.append(entry_id)
-    return result
