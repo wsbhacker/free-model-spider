@@ -1,0 +1,335 @@
+{
+  "date": "2026-10-30",
+  "vendors": [
+    {
+      "id": "openai",
+      "seen_directory_ids": [],
+      "lines": [
+        {
+          "key": "flagship",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        },
+        {
+          "key": "sub",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        }
+      ]
+    },
+    {
+      "id": "anthropic",
+      "seen_directory_ids": [],
+      "lines": [
+        {
+          "key": "flagship",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        },
+        {
+          "key": "sub",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        }
+      ]
+    },
+    {
+      "id": "google",
+      "seen_directory_ids": [],
+      "lines": [
+        {
+          "key": "flagship",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        },
+        {
+          "key": "sub",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        }
+      ]
+    },
+    {
+      "id": "meta",
+      "seen_directory_ids": [],
+      "lines": [
+        {
+          "key": "flagship",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        }
+      ]
+    },
+    {
+      "id": "xai",
+      "seen_directory_ids": [],
+      "lines": [
+        {
+          "key": "flagship",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        }
+      ]
+    },
+    {
+      "id": "mistral",
+      "seen_directory_ids": [],
+      "lines": [
+        {
+          "key": "flagship",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        },
+        {
+          "key": "sub",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        }
+      ]
+    },
+    {
+      "id": "cohere",
+      "seen_directory_ids": [],
+      "lines": [
+        {
+          "key": "flagship",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        }
+      ]
+    },
+    {
+      "id": "deepseek",
+      "seen_directory_ids": [],
+      "lines": [
+        {
+          "key": "flagship",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        },
+        {
+          "key": "sub",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        }
+      ]
+    },
+    {
+      "id": "qwen",
+      "seen_directory_ids": [],
+      "lines": [
+        {
+          "key": "flagship",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        },
+        {
+          "key": "sub",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        }
+      ]
+    },
+    {
+      "id": "moonshot",
+      "seen_directory_ids": [],
+      "lines": [
+        {
+          "key": "flagship",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        },
+        {
+          "key": "sub",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        }
+      ]
+    },
+    {
+      "id": "zhipu",
+      "seen_directory_ids": [],
+      "lines": [
+        {
+          "key": "flagship",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        },
+        {
+          "key": "sub",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        }
+      ]
+    },
+    {
+      "id": "minimax",
+      "seen_directory_ids": [],
+      "lines": [
+        {
+          "key": "flagship",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        },
+        {
+          "key": "sub",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        }
+      ]
+    },
+    {
+      "id": "bytedance",
+      "seen_directory_ids": [],
+      "lines": [
+        {
+          "key": "flagship",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        }
+      ]
+    },
+    {
+      "id": "tencent",
+      "seen_directory_ids": [],
+      "lines": [
+        {
+          "key": "flagship",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        }
+      ]
+    },
+    {
+      "id": "stepfun",
+      "seen_directory_ids": [],
+      "lines": [
+        {
+          "key": "flagship",
+          "model": null,
+          "release_date": null,
+          "url": null,
+          "last_verified": null,
+          "status": "pending",
+          "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
+          "pending_days": 1
+        }
+      ]
+    }
+  ]
+}

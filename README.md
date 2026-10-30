@@ -68,3 +68,12 @@ Markdown 日报，由 GitHub Actions 每日北京时间 08:30 自动运行并提
 
 - 扩展新平台：实现 `Source` 接口（`src/free_model_spider/sources/base.py`）
   并 `@register`，日报与快照自动多出该平台。
+
+<!-- fms-vendors:start -->
+### 厂商新鲜度榜
+
+| 厂商 | 模型 | 发布日 | 天数 |
+|---|---|---|---|
+
+> 更新于 2026-10-30
+<!-- fms-vendors:end -->
