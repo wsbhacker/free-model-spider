@@ -17,6 +17,8 @@ def send_alert(
 ) -> bool:
     """向 ALERT_WEBHOOK_URL 发送告警通知。
 
+    配置 ALERT_WEBHOOK_TOKEN 时附带 `x-token` 请求头（webhook 侧鉴权用，
+    值按密钥管理：永不进仓库、不进日志）；未配置则不发该头。
     未配置 env 时打印跳过日志并返回 False；发送失败（连接错误、HTTP 错误、
     任何异常）打印中文日志并返回 False，绝不向调用方抛异常。
     """
@@ -24,6 +26,7 @@ def send_alert(
     if not url:
         print("[alert] 未配置 ALERT_WEBHOOK_URL，跳过告警")
         return False
+    token = os.environ.get("ALERT_WEBHOOK_TOKEN") or ""
     try:
         request_with_retries(
             client,
@@ -31,6 +34,7 @@ def send_alert(
             url,
             retries=3,
             json={"title": title, "content": content},
+            headers={"x-token": token} if token else None,
             sleep=sleep,
         )
         return True

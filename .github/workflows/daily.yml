@@ -40,6 +40,7 @@ jobs:
           LLM_MODEL: ${{ vars.LLM_MODEL }}
           LLM_FALLBACK_MODELS: ${{ vars.LLM_FALLBACK_MODELS }}
           ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+          ALERT_WEBHOOK_TOKEN: ${{ secrets.ALERT_WEBHOOK_TOKEN }}
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           uv run fms run
@@ -52,6 +53,7 @@ jobs:
           LLM_MODEL: ${{ vars.LLM_MODEL }}
           LLM_FALLBACK_MODELS: ${{ vars.LLM_FALLBACK_MODELS }}
           ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+          ALERT_WEBHOOK_TOKEN: ${{ secrets.ALERT_WEBHOOK_TOKEN }}
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           uv run fms vendors
