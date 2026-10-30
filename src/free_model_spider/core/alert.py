@@ -19,8 +19,9 @@ def send_alert(
 
     配置 ALERT_WEBHOOK_TOKEN 时附带 `x-token` 请求头（webhook 侧鉴权用，
     值按密钥管理：永不进仓库、不进日志）；未配置则不发该头。
-    未配置 env 时打印跳过日志并返回 False；发送失败（连接错误、HTTP 错误、
-    任何异常）打印中文日志并返回 False，绝不向调用方抛异常。
+    未配置 env 时打印跳过日志并返回 False；发送成功打印标题日志并返回 True；
+    发送失败（连接错误、HTTP 错误、任何异常）打印中文日志并返回 False，
+    绝不向调用方抛异常。
     """
     url = os.environ.get("ALERT_WEBHOOK_URL") or ""
     if not url:
@@ -37,6 +38,7 @@ def send_alert(
             headers={"x-token": token} if token else None,
             sleep=sleep,
         )
+        print(f"[alert] 告警已发送：{title}")
         return True
     except Exception as exc:  # noqa: BLE001 —— fire-and-forget：告警失败绝不能影响主流程
         # 脱敏：异常消息/args 内嵌完整 webhook URL（含 token），永不进日志；

@@ -32,6 +32,15 @@ def test_send_alert_posts_title_and_content(monkeypatch):
 
 
 @respx.mock
+def test_send_alert_logs_success_title(monkeypatch, capsys):
+    """发送成功也留一行日志：Actions 里能确认告警确实发出去了。"""
+    monkeypatch.setenv("ALERT_WEBHOOK_URL", WEBHOOK_URL)
+    respx.post(WEBHOOK_URL).mock(return_value=httpx.Response(200))
+    assert send_alert(httpx.Client(), "标题X", "c", sleep=NO_SLEEP) is True
+    assert "[alert] 告警已发送：标题X" in capsys.readouterr().out
+
+
+@respx.mock
 def test_send_alert_sends_x_token_header_when_configured(monkeypatch):
     monkeypatch.setenv("ALERT_WEBHOOK_URL", WEBHOOK_URL)
     monkeypatch.setenv("ALERT_WEBHOOK_TOKEN", "TOKEN123")

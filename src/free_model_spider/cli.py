@@ -26,8 +26,10 @@ from free_model_spider.core.vendor_judge import (
     extract_from_article,
 )
 from free_model_spider.core.vendor_report import (
+    pending_rows_from_baseline,
     render_json,
     render_markdown,
+    render_pending_markdown,
     rows_from_baseline,
     update_readme_freshness,
 )
@@ -133,12 +135,13 @@ def _bootstrap_vendor(
     date: str,
     directory_entries: list[str],
     corroborations: dict[str, str],
+    failures: list[str],
 ) -> None:
     """首跑/基线迁移初始化（v2 spec §4）：每线取门筛命中的日期最新公告做种子
     （每线至多 1 次提取），其余条目全部入 seen——杜绝 v1 首跑 329 次调用重演。
 
     LLM 未配置时不入 seen（配置好后次日整体重试）；公告列表为空同样不入 seen，
-    待列表可解析后自动重跑 bootstrap。
+    待列表可解析后自动重跑 bootstrap。种子提取失败追加到 failures（收尾统一告警）。
     """
     if llm is None or not listings:
         return
@@ -163,6 +166,7 @@ def _bootstrap_vendor(
               f"{new_line.status}：{new_line.reason}")
         if judgment is None:
             failed_keys.add(_announcement_key(newest.url, newest.title))
+            failures.append(f"{vendor.id}/{line.key} 种子提取失败：{newest.title[:50]}")
         elif new_line.status == "ok":
             _attach_corroboration(vendor, line, new_line.model, directory_entries,
                                   corroborations)
@@ -185,11 +189,13 @@ def _process_new_announcements(
     date: str,
     directory_entries: list[str],
     corroborations: dict[str, str],
+    failures: list[str],
 ) -> None:
     """日常增量：只处理未入 seen 的新公告条目——门筛定位线，文章页提取裁决。
 
     终态（ignore / 线裁决非 pending）入 seen；提取或归类失败次日重试（条目仍在
-    列表页的前提下）。列表页条目按文档序处理（通常新→旧，防倒退拒绝兜底乱序）。
+    列表页的前提下），失败追加到 failures（收尾统一告警；LLM 全局未配置属
+    已知降级，不计入）。列表页条目按文档序处理（通常新→旧，防倒退拒绝兜底乱序）。
     """
     seen = set(state.seen_announcement_urls)
     new_entries = [
@@ -214,6 +220,8 @@ def _process_new_announcements(
             category, why = classify_entry(llm, vendor, entry.title)
             print(f"vendors: {vendor.id} 归类 {entry.title[:60]} -> {category}：{why[:80]}")
             labels[entry.url + entry.title] = (category, why)
+            if category == "pending" and llm is not None:
+                failures.append(f"{vendor.id} 归类失败：{entry.title[:50]}")
 
     for entry in new_entries:
         category, _ = labels[entry.url + entry.title]
@@ -229,6 +237,8 @@ def _process_new_announcements(
         print(f"vendors: {vendor.id}/{line.key} <- {entry.title[:60]} -> "
               f"{new_line.status}：{new_line.reason}")
         line_states[line.key] = new_line
+        if judgment is None and llm is not None:
+            failures.append(f"{vendor.id}/{line.key} 提取失败：{entry.title[:50]}")
         if judgment is not None and new_line.status == "ok":
             _attach_corroboration(vendor, line, new_line.model, directory_entries,
                                   corroborations)
@@ -251,6 +261,7 @@ def run_vendors(args) -> int:
     client = httpx.Client(timeout=60, follow_redirects=True,
                           headers={"User-Agent": BROWSER_UA})
     failed: list[str] = []
+    run_failures: list[str] = []  # 当次运行提取/归类失败明细（收尾统一告警）
     try:
         config = load_config(args.config)
         latest = find_latest_baseline(args.data_dir, date)
@@ -305,10 +316,12 @@ def run_vendors(args) -> int:
                               f"疑似上游改版，沿用昨日基线")
                     if not state.seen_announcement_urls:
                         _bootstrap_vendor(vendor, state, listings, llm, client, date,
-                                          directory_entries, corroborations)
+                                          directory_entries, corroborations,
+                                          run_failures)
                     else:
                         _process_new_announcements(vendor, state, listings, llm, client,
-                                                   date, directory_entries, corroborations)
+                                                   date, directory_entries,
+                                                   corroborations, run_failures)
                 # 目录新条目审计（v2：门铃降级为"公告页没动静"的提示信号，spec §2）
                 fresh_dir = screen_new_entries(vendor, state, directory_entries)
                 if fresh_dir and not vendor.announcements:
@@ -341,17 +354,38 @@ def run_vendors(args) -> int:
         status_counts = Counter(
             line.status for v in baseline.vendors for line in v.lines
         )
-        print(f"vendors: 线状态汇总：ok={status_counts.get('ok', 0)}"
-              f" pending={status_counts.get('pending', 0)}"
-              f" stale-baseline={status_counts.get('stale-baseline', 0)}"
-              f"，进表 {len(rows)} 行")
+        summary = (f"线状态汇总：ok={status_counts.get('ok', 0)}"
+                   f" pending={status_counts.get('pending', 0)}"
+                   f" stale-baseline={status_counts.get('stale-baseline', 0)}")
+        print(f"vendors: {summary}，进表 {len(rows)} 行")
         if not rows:
             print("vendors: 报告为空：没有任何线同时具备 model/url/release_date，"
                   "检查上方各线降级原因")
+        if run_failures or failed:
+            # 当日异常摘要告警：冻结/顶层崩溃各有独立告警，这里只收提取/归类
+            # 失败与单厂商异常（原版只打印不发，Actions 红灯之外的静默缺口）。
+            content_lines = [f"{date} 厂商新鲜度当日异常："]
+            if run_failures:
+                content_lines.append("公告提取/归类失败（详见 Actions 日志，条目次日自动重试）：")
+                content_lines += [f"- {item}" for item in run_failures]
+            if failed:
+                content_lines.append(f"厂商处理失败（当日整体跳过）：{'、'.join(failed)}")
+            content_lines.append(summary)
+            link = run_link()
+            if link:
+                content_lines.append(link)
+            send_alert(client, "大模型新鲜度厂商异常", "\n".join(content_lines))
         args.reports_dir.mkdir(parents=True, exist_ok=True)
         report = args.reports_dir / f"各大厂商大模型新鲜度-{date}.md"
         report.write_text(render_markdown(date, rows), encoding="utf-8")
         report.with_suffix(".json").write_text(render_json(date, rows), encoding="utf-8")
+        pending_rows = pending_rows_from_baseline(config, baseline)
+        if pending_rows or failed:
+            # 有错才有：未决线明细（-pending 后缀），随 reports 目录一并提交
+            pending_report = args.reports_dir / f"各大厂商大模型新鲜度-{date}-pending.md"
+            pending_report.write_text(
+                render_pending_markdown(date, pending_rows, failed), encoding="utf-8")
+            print(f"vendors: 未决明细 -> {pending_report}")
         update_readme_freshness(args.readme, date, rows)
         save_baseline(baseline, baseline_path(args.data_dir, date))
         print(f"vendors: 报告 -> {report}")

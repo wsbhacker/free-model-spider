@@ -39,6 +39,53 @@ ARTICLE_TEXT_LIMIT = 12000  # 文章页正文截断（导航噪声在前，日�
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _VALID_CATEGORIES = {"flagship", "sub", "ignore"}
 
+# evidence 日期核对支持的原文格式：ISO/斜杠、英文月名（月前/日前）、中文年月日。
+# 不用 dateutil fuzzy 解析：中文日期不支持，且会被版本号等数字噪声带偏；
+# 白名单 regex 归一化比对是确定性的（2026-10-30 anthropic/google 误杀教训：
+# 页面原文写 "Aug 5, 2025"，LLM 正确归一为 ISO 后反被逐字子串校验判死）。
+_MONTH_WORDS = ("jan", "feb", "mar", "apr", "may", "jun",
+                "jul", "aug", "sep", "oct", "nov", "dec")
+_MONTHS = {m: i for i, m in enumerate(_MONTH_WORDS, 1)}
+_MONTH_NAME = "(" + "|".join(_MONTH_WORDS) + ")"
+_ISO_LIKE_RE = re.compile(r"(20\d{2})[-/](\d{1,2})[-/](\d{1,2})")
+_MONTH_FIRST_RE = re.compile(
+    _MONTH_NAME + r"[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(20\d{2})", re.I)
+_DAY_FIRST_RE = re.compile(
+    r"(\d{1,2})(?:st|nd|rd|th)?\s+" + _MONTH_NAME + r"[a-z]*\.?,?\s+(20\d{2})", re.I)
+_CN_DATE_RE = re.compile(r"(20\d{2})年(\d{1,2})月(\d{1,2})日")
+
+
+def _norm_iso(year: str, month: str, day: str) -> str | None:
+    """零填充归一为 YYYY-MM-DD；月/日越界（如 Aug 35）返回 None 丢弃。"""
+    y, m, d = int(year), int(month), int(day)
+    if not (1 <= m <= 12 and 1 <= d <= 31):
+        return None
+    return f"{y:04d}-{m:02d}-{d:02d}"
+
+
+def dates_in_text(text: str) -> set[str]:
+    """提取文本中各常见格式日期并归一为 ISO 集合（evidence 日期核对用）。"""
+    found: set[str] = set()
+    for match in _ISO_LIKE_RE.finditer(text):
+        iso = _norm_iso(*match.groups())
+        if iso:
+            found.add(iso)
+    for match in _CN_DATE_RE.finditer(text):
+        iso = _norm_iso(*match.groups())
+        if iso:
+            found.add(iso)
+    for match in _MONTH_FIRST_RE.finditer(text):
+        name, day, year = match.groups()
+        iso = _norm_iso(year, str(_MONTHS[name.lower()]), day)
+        if iso:
+            found.add(iso)
+    for match in _DAY_FIRST_RE.finditer(text):
+        day, name, year = match.groups()
+        iso = _norm_iso(year, str(_MONTHS[name.lower()]), day)
+        if iso:
+            found.add(iso)
+    return found
+
 _SCRIPT_STYLE_RE = re.compile(r"<(script|style|noscript)\b.*?</\1>", re.S | re.I)
 _TAG_RE = re.compile(r"<[^>]+>")
 _WS_RE = re.compile(r"\s+")
@@ -66,7 +113,8 @@ def validate_judgment(j: Judgment, official_domains: list[str]) -> bool:
     """程序侧兜底校验：有事实就必须有官方域出处与含日期的 evidence。
 
     model/release_date 任一非 None 时：两者须均非 None、evidence 非空、
-    release_date（YYYY-MM-DD 归一后）出现在 evidence/source_urls 文本中、
+    release_date 归一后须与 evidence/source_urls 文本中出现的某处日期一致
+    （ISO/斜杠/英文月名/中文年月日，归一比对——页面原文极少写 ISO 串）、
     source_urls 非空且全部 host 落在官方域白名单内。两者均 None（材料不足）放行。
     """
     if j.model is None and j.release_date is None:
@@ -78,7 +126,7 @@ def validate_judgment(j: Judgment, official_domains: list[str]) -> bool:
     if not DATE_RE.match(j.release_date):
         return False
     evidence_text = "\n".join([*j.evidence, *j.source_urls])
-    if j.release_date not in evidence_text:
+    if j.release_date not in dates_in_text(evidence_text):
         return False
     return all(_host_in_whitelist(u, official_domains) for u in j.source_urls)
 

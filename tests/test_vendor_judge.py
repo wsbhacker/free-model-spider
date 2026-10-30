@@ -124,6 +124,58 @@ def test_validate_rejects_model_without_date():
     assert validate_judgment(j, VENDOR.official_domains) is False
 
 
+# ---------- validate 日期归一化比对（2026-10-30 anthropic/google 误杀修复） ----------
+
+
+def test_validate_accepts_abbreviated_month_date_evidence():
+    # anthropic 页面原文 "Published Aug 5, 2025"——LLM 归一为 ISO 后须过校验
+    j = vendor_judge.Judgment(
+        model="Claude Opus 4.1", release_date="2025-08-05",
+        source_urls=["https://www.anthropic.com/news/claude-opus-4-1"],
+        evidence=["Claude Opus 4.1 Published Aug 5, 2025"], reason="",
+    )
+    assert validate_judgment(j, ["anthropic.com"]) is True
+
+
+def test_validate_accepts_full_month_and_day_first_date_evidence():
+    # google changelog "October 13, 2026" 与英式 "13 October 2026"
+    month_first = vendor_judge.Judgment(
+        model="Gemini 4 Argon", release_date="2026-10-13",
+        source_urls=["https://ai.google.dev/gemini-api/docs/changelog"],
+        evidence=["October 13, 2026 Gemini 4 Argon generally available"], reason="",
+    )
+    assert validate_judgment(month_first, ["ai.google.dev"]) is True
+    day_first = vendor_judge.Judgment(
+        model="Gemini 4 Argon", release_date="2026-10-13",
+        source_urls=["https://ai.google.dev/gemini-api/docs/changelog"],
+        evidence=["13 October 2026 generally available"], reason="",
+    )
+    assert validate_judgment(day_first, ["ai.google.dev"]) is True
+
+
+def test_validate_accepts_chinese_and_slash_date_evidence():
+    chinese = vendor_judge.Judgment(
+        model="GLM-5.4", release_date="2026-10-20",
+        source_urls=[ARTICLE_URL], evidence=["GLM-5.4 于2026年10月20日发布"], reason="",
+    )
+    assert validate_judgment(chinese, VENDOR.official_domains) is True
+    slash = vendor_judge.Judgment(
+        model="GLM-5.4", release_date="2026-10-20",
+        source_urls=[ARTICLE_URL], evidence=["发布于 2026/10/20"], reason="",
+    )
+    assert validate_judgment(slash, VENDOR.official_domains) is True
+
+
+def test_validate_rejects_mismatched_normalized_date():
+    # evidence 只有 Aug 5，LLM 却归一出 8 月 6 日 → 归一后对不上仍拒绝
+    j = vendor_judge.Judgment(
+        model="Claude Opus 4.1", release_date="2025-08-06",
+        source_urls=["https://www.anthropic.com/news/claude-opus-4-1"],
+        evidence=["Claude Opus 4.1 Published Aug 5, 2025"], reason="",
+    )
+    assert validate_judgment(j, ["anthropic.com"]) is False
+
+
 # ---------- extract_from_article ----------
 
 

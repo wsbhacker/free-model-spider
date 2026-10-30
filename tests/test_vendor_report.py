@@ -8,9 +8,12 @@ from free_model_spider.core.vendor_config import (
 from free_model_spider.core.vendor_report import (
     FMS_VENDORS_END,
     FMS_VENDORS_START,
+    PendingRow,
     VendorRow,
+    pending_rows_from_baseline,
     render_json,
     render_markdown,
+    render_pending_markdown,
     rows_from_baseline,
     update_readme_freshness,
 )
@@ -248,6 +251,40 @@ def test_render_json_empty_rows():
     assert render_json(
         "2026-10-29", []
     ) == '{\n  "schema_version": 1,\n  "date": "2026-10-29",\n  "models": []\n}\n'
+
+
+# ---------- -pending 未决明细报告 ----------
+
+
+def test_pending_rows_from_baseline_collects_pending_lines_only():
+    # 只收 status='pending'：ok/stale-baseline 不进；按配置厂商/线顺序、取配置线名
+    assert pending_rows_from_baseline(make_config(), make_baseline()) == [
+        PendingRow(
+            vendor_name="智谱 AI",
+            line_name="GLM FlashX",
+            model=None,
+            pending_days=2,
+            reason="裁决缺失",
+        )
+    ]
+
+
+def test_render_pending_markdown_lists_rows_and_failed_vendors():
+    text = render_pending_markdown(
+        "2026-10-29",
+        [PendingRow("智谱 AI", "GLM FlashX", None, 2, "裁决缺失（提取/校验/确认失败）")],
+        failed_vendors=["openai"],
+    )
+    assert text.startswith("# 各大厂商大模型新鲜度 2026-10-29 未决明细")
+    assert (
+        "| 智谱 AI | GLM FlashX | — | 2 | 裁决缺失（提取/校验/确认失败） |" in text
+    )
+    assert "处理失败厂商（当日整体跳过）：openai" in text
+    assert "次日自动重试" in text  # 图例说明重试语义
+
+
+def test_render_pending_markdown_without_failed_vendors_omits_footer():
+    assert "处理失败厂商" not in render_pending_markdown("2026-10-29", [])
 
 
 def test_update_readme_freshness_appends_block(tmp_path: Path):

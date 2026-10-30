@@ -27,6 +27,16 @@ class VendorRow(NamedTuple):
     days: int
 
 
+class PendingRow(NamedTuple):
+    """-pending 明细报告一行未决线：厂商/线显示名、现值模型、pending 天数与原因。"""
+
+    vendor_name: str
+    line_name: str
+    model: str | None
+    pending_days: int
+    reason: str
+
+
 def rows_from_baseline(
     config: VendorReleasesConfig,
     baseline: Baseline,
@@ -119,6 +129,62 @@ def render_json(date: str, rows: list[VendorRow]) -> str:
         ],
     }
     return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+
+
+def pending_rows_from_baseline(
+    config: VendorReleasesConfig, baseline: Baseline
+) -> list[PendingRow]:
+    """收集全部 pending 线（当日未能确认、未进主表的线），按配置厂商/线顺序。
+
+    含无公告源厂商（配置缺口）与提取/校验失败的线；stale-baseline 已冻结
+    出状态机，不属于未决，不收录。
+    """
+    states = {state.id: state for state in baseline.vendors}
+    rows: list[PendingRow] = []
+    for vendor in config.vendors:
+        state = states.get(vendor.id)
+        if state is None:
+            continue
+        names = {line.key: line.name for line in vendor.lines}
+        for line_state in state.lines:
+            if line_state.status != "pending":
+                continue
+            rows.append(
+                PendingRow(
+                    vendor_name=vendor.name,
+                    line_name=names.get(line_state.key, line_state.key),
+                    model=line_state.model,
+                    pending_days=line_state.pending_days,
+                    reason=line_state.reason,
+                )
+            )
+    return rows
+
+
+def render_pending_markdown(
+    date: str, rows: list[PendingRow], failed_vendors: list[str] | None = None
+) -> str:
+    """-pending 后缀明细报告：pending 线清单 + 处理失败厂商脚注（有错才生成）。"""
+    lines = [
+        f"# 各大厂商大模型新鲜度 {date} 未决明细",
+        "",
+        "| 厂商 | 线 | 现值模型 | pending 天数 | 原因 |",
+        "|---|---|---|---|---|",
+    ]
+    for row in rows:
+        lines.append(
+            f"| {row.vendor_name} | {row.line_name} | {row.model or '—'} | "
+            f"{row.pending_days} | {row.reason or '—'} |"
+        )
+    lines += [
+        "",
+        "> 主表只收录已确认线；本文件为当日 pending 线清单——提取/校验失败的条目"
+        "次日自动重试，连续 7 天未决冻结为 stale-baseline。",
+    ]
+    if failed_vendors:
+        lines += ["", f"> 处理失败厂商（当日整体跳过）：{'、'.join(failed_vendors)}"]
+    lines.append("")
+    return "\n".join(lines)
 
 
 def update_readme_freshness(readme: Path, date: str, rows: list[VendorRow]) -> None:

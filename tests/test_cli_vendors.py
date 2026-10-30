@@ -185,6 +185,12 @@ def test_bootstrap_seeds_each_line_from_newest_gated_listing(tmp_path, monkeypat
     assert len(zai.seen_announcement_urls) == 2
     assert all("::" in key for key in zai.seen_announcement_urls)
     assert "GLM-5.4" in Path(REPORT_MD).read_text("utf-8")
+    # openai 无公告源仍 pending → 生成 -pending 未决明细（只含 openai，zai 已 ok）
+    pending_md = Path("reports/各大厂商大模型新鲜度-2026-10-29-pending.md")
+    assert pending_md.exists()
+    ptext = pending_md.read_text("utf-8")
+    assert "OpenAI" in ptext and "GPT 主线" in ptext
+    assert "智谱 AI" not in ptext
 
     # 次日重跑：seen 齐全、无新条目 → 零 LLM 调用，幂等
     llm2 = FakeLLM([])
@@ -271,6 +277,11 @@ def test_extraction_failure_keeps_entry_unseen_and_line_pending(tmp_path, monkey
     _init_repo(repo)
     monkeypatch.chdir(repo)
     _clean_env(monkeypatch)
+    alerts: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "free_model_spider.cli.send_alert",
+        lambda client, title, content: alerts.append((title, content)),
+    )
     save_baseline(_zai_seeded(), baseline_path(Path("data"), "2026-10-28"))
     llm = FakeLLM([INSUFFICIENT_JSON, INSUFFICIENT_JSON, INSUFFICIENT_JSON])
     _stub_llm(monkeypatch, llm)
@@ -283,6 +294,17 @@ def test_extraction_failure_keeps_entry_unseen_and_line_pending(tmp_path, monkey
     assert zai.lines[0].status == "pending"
     assert zai.lines[0].pending_days == 1
     assert zai.seen_announcement_urls == []  # 无终态结论 → 次日重试
+    # 提取失败 → 当日异常摘要告警恰一次，两条种子失败都进正文
+    assert [title for title, _ in alerts] == ["大模型新鲜度厂商异常"]
+    content = alerts[0][1]
+    assert "zai/flagship 种子提取失败" in content
+    assert "zai/sub 种子提取失败" in content
+    assert "线状态汇总" in content
+    # 未决明细报告落盘：pending 线 + 原因可寻址
+    pending_md = Path("reports/各大厂商大模型新鲜度-2026-10-29-pending.md")
+    ptext = pending_md.read_text("utf-8")
+    assert "智谱 AI" in ptext and "GLM 主线" in ptext
+    assert "裁决缺失" in ptext
 
 
 # ---------- 场景⑤：公告列表抓取失败 → 降级沿用昨日基线，不崩 ----------
@@ -412,6 +434,11 @@ def test_vendor_without_announcements_audits_directory_entries(tmp_path, monkeyp
     monkeypatch.chdir(repo)
     _clean_env(monkeypatch)
     _stub_no_llm(monkeypatch)
+    alerts: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "free_model_spider.cli.send_alert",
+        lambda client, title, content: alerts.append((title, content)),
+    )
     monkeypatch.setattr("time.sleep", lambda _s: None)
     respx.get(OPENROUTER_URL).mock(
         return_value=httpx.Response(
@@ -424,6 +451,10 @@ def test_vendor_without_announcements_audits_directory_entries(tmp_path, monkeyp
     out = capsys.readouterr().out
     assert "无公告源配置" in out
     assert "目录新条目 1 个" in out  # gpt-6.2 新、gpt-6.1 已见
+    # 无公告源/未配置 LLM 属已知降级：进 -pending 明细但不刷 webhook
+    assert alerts == []
+    pending_md = Path("reports/各大厂商大模型新鲜度-2026-10-29-pending.md")
+    assert "智谱 AI" in pending_md.read_text("utf-8")
     saved = load_baseline(baseline_path(Path("data"), "2026-10-29"))
     openai = next(v for v in saved.vendors if v.id == "openai")
     assert "openai/gpt-6.2" in openai.seen_directory_ids  # 审计后入 seen，不重复提示
