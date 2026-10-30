@@ -16,12 +16,12 @@
 
 另实测（2026-10-30）：`openai.com` 新闻页 403 反爬、`anthropic.com` 公告页为 SPA（前 8000 字符无日期）→ confirm 环节在部分厂商同样不可用。
 
-**推特/X 通道**（用户 2026-10-30 提出并否决）：各厂商确在 X 发布公告（@OpenAI/@AnthropicAI/@GoogleDeepMind/@deepseek_ai/@Kimi_Moonshot/@zai_org/@Alibaba_Qwen/@MiniMax_AI），但 X API 读取档 $200+/月、爬取违反 ToS、历史不可回溯（首跑初始化不靠谱）→ 不采用。
+**推特/X 通道**（用户 2026-10-30 提出并否决；X API 读取档定价与 ToS 结论检索于 2026-10-30，[x.ai/api](https://x.ai/api)）：各厂商确在 X 发布公告（@OpenAI/@AnthropicAI/@GoogleDeepMind/@deepseek_ai/@Kimi_Moonshot/@zai_org/@Alibaba_Qwen/@MiniMax_AI），但 X API 读取档 $200+/月、爬取违反 ToS、历史不可回溯（首跑初始化不靠谱）→ 不采用。
 
 ## 2. 目录日期双源实测（2026-10-30，触发与佐证用，不作日期真值）
 
-- OpenRouter `/api/v1/models` 的 `created` = **上架 OpenRouter 时间**（官方文档），非发布日；新模型当天上架≈发布日，存量模型为回填值（gpt-4 显示 2023-05-28，真实 2023-03-14），且存在提前占位（deepseek-v4-flash 占位 2026-04-24，实际首发 2026-07-31）。
-- models.dev `api.json` 的 `release_date` = 社区手工策展（sst/models.dev 仓库逐模型 TOML）；近期模型准确（gpt-6.1-terra=2026-10-26 与官方公告日一致），存量有占位符（2024-01-01）/回填错/快照日（deepseek-v4-flash 记 10-17 更新日）三类脏数据。
+- OpenRouter `/api/v1/models` 的 `created` = **上架 OpenRouter 时间**（[官方 Models 文档](https://openrouter.ai/docs/guides/overview/models)，检索 2026-10-30），非发布日；新模型当天上架≈发布日，存量模型为回填值（gpt-4 显示 2023-05-28，真实 2023-03-14），且存在提前占位（deepseek-v4-flash 占位 2026-04-24，实际首发 2026-07-31）。
+- models.dev `api.json` 的 `release_date` = 社区手工策展（[sst/models.dev](https://github.com/sst/models.dev) 仓库逐模型 TOML，检索 2026-10-30）；近期模型准确（gpt-6.1-terra=2026-10-26 与官方公告日一致），存量有占位符（2024-01-01）/回填错/快照日（deepseek-v4-flash 记 10-17 更新日）三类脏数据。
 - 两源近半年共有模型 42 个：UTC 同日 62%、±1 天 74%（±1 天多为时区伪差，方向因厂商地域而异）；差 >1 天的 11 个全部可归因（占位/滞后上架/快照日）。
 
 **结论**：目录双源**只做**（a）新条目触发信号（上线即知，免费）；（b）报告 ⧉ 佐证链接；（c）与官网日期交叉验证。日期真值唯一来源 = 官网公告页。
@@ -74,12 +74,14 @@
 5. **状态机沿用 v1**：`apply_judgment`/`finalize_state`/pending 7 天冻结/防倒退/未来日期拒绝，全部不动；`VendorState` 新增 `seen_announcement_urls` 审计字段（键 = `url::标题小写`，headings/json 模式条目共享列表页 URL 必须带标题区分）。裁决阶段只 `apply_judgment`，`finalize_state` 统一在本厂商收尾循环（冻结迁移告警恰一次）。
 6. **配置**：`vendor_releases.yml` 收窄为 8 家（用户 2026-10-30 决策：御三家 + deepseek/kimi/glm/qwen/minimax；阶跃星辰移除），每厂商新增 `announcements: [{name, url, mode, include?}]`。
 7. **日期口径冲突**：文章页提取日期与列表页日期不一致时，以文章页为准（进 evidence），差异记 reason 审计。
+9. **⧉ 佐证口径**：佐证链接只在裁决日构建（当日报告呈现），历史报告保留当日快照；同日重跑不重建佐证（沿用 v1 幂等语义）。
 8. **bootstrap 补充语义**：LLM 未配置或列表解析为空 → 不入 seen，条件恢复后整体重跑；种子提取失败 → 该条目不入 seen，次日走增量路径重试（自愈）。
 
 ## 5. 需求（沿用 v1 §2 全部功能/非功能需求，修订如下）
 
 - 修订 1：日期来源从"官方域限定搜索"改为"官网公告列表页 + 文章页原文"；搜索/Brave 移除。
 - 修订 2：厂商清单收窄 15 → 8（meta/xai/mistral/cohere/bytedance/tencent/stepfun 移出 v2，配置保留注释便于回加）。
+- 修订 2b：`BRAVE_API_KEY` 不再是 `fms vendors` 的必需/使用密钥（v1 非功能需求 5 相应失效；`fms run` 介绍功能不受影响）。
 - 修订 3：新增首跑 bootstrap 行为——列表页解析成功的厂商按线种子初始化，解析失败的厂商转 pending + 告警。
 
 ## 6. 风险与兜底
