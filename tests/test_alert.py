@@ -32,6 +32,34 @@ def test_send_alert_posts_title_and_content(monkeypatch):
 
 
 @respx.mock
+def test_send_alert_sends_x_token_header_when_configured(monkeypatch):
+    monkeypatch.setenv("ALERT_WEBHOOK_URL", WEBHOOK_URL)
+    monkeypatch.setenv("ALERT_WEBHOOK_TOKEN", "TOKEN123")
+    route = respx.post(WEBHOOK_URL).mock(return_value=httpx.Response(200))
+    assert send_alert(httpx.Client(), "t", "c", sleep=NO_SLEEP) is True
+    assert route.calls.last.request.headers["x-token"] == "TOKEN123"
+
+
+@respx.mock
+def test_send_alert_omits_x_token_header_when_not_configured(monkeypatch):
+    monkeypatch.setenv("ALERT_WEBHOOK_URL", WEBHOOK_URL)
+    monkeypatch.delenv("ALERT_WEBHOOK_TOKEN", raising=False)
+    route = respx.post(WEBHOOK_URL).mock(return_value=httpx.Response(200))
+    assert send_alert(httpx.Client(), "t", "c", sleep=NO_SLEEP) is True
+    assert "x-token" not in route.calls.last.request.headers  # 未配置则不发送空头
+
+
+@respx.mock
+def test_send_alert_log_redacts_token(monkeypatch, capsys):
+    """失败日志永不包含 x-token 的值（与 webhook URL 同级敏感）。"""
+    monkeypatch.setenv("ALERT_WEBHOOK_URL", WEBHOOK_URL)
+    monkeypatch.setenv("ALERT_WEBHOOK_TOKEN", "TOKEN123")
+    respx.post(WEBHOOK_URL).mock(return_value=httpx.Response(500))
+    assert send_alert(httpx.Client(), "t", "c", sleep=NO_SLEEP) is False
+    assert "TOKEN123" not in capsys.readouterr().out
+
+
+@respx.mock
 def test_send_alert_retries_then_succeeds(monkeypatch):
     monkeypatch.setenv("ALERT_WEBHOOK_URL", WEBHOOK_URL)
     route = respx.post(WEBHOOK_URL).mock(

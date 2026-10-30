@@ -246,7 +246,7 @@ LLM 用量：平日 0 次；事件日每厂商 2~4 次；无 key/失败全链路
 
 ### 10.1 故障通知（webhook，覆盖 fms run 与 fms vendors）
 
-- **配置**：`ALERT_WEBHOOK_URL`（GitHub Secret / 本地 `.env`；地址可能携带 token，按密钥管理，永不进仓库）。缺失 → 跳过通知，仅 Actions 红灯。
+- **配置**：`ALERT_WEBHOOK_URL`（GitHub Secret / 本地 `.env`；地址可能携带 token，按密钥管理，永不进仓库）。缺失 → 跳过通知，仅 Actions 红灯。可选 `ALERT_WEBHOOK_TOKEN`（同级 Secret）：配置后请求头附 `x-token`（webhook 侧鉴权），未配置不发该头；值同样永不进仓库与日志。
 - **契约**：`POST <url>`，body JSON `{"title": string, "content": string}`，中文；content 含：日期、流水线名（run/vendors）、故障对象、异常摘要（截断）、Actions 运行链接（由 `GITHUB_SERVER_URL/REPOSITORY/RUN_ID` 环境变量拼装，本地运行时省略）。
 - **触发条件**（与上表对应，只报"需要人看"的，降级不报）：
   1. `fms vendors`：无法产出当日报告/基线（渲染或写盘异常）、git commit/push 失败、厂商 pending 连续 7 天冻结（**仅在状态迁移为冻结那一刻报一次**，不每日重复）。
