@@ -2,6 +2,7 @@ import argparse
 import os
 import subprocess
 import time
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -115,6 +116,10 @@ def run_vendors(args) -> int:
         review = detect_review(config, baseline, entries_by_vendor, date)
         llm = build_llm_client(client)
         search = build_search_provider(client)
+        if llm is None:
+            print("vendors: LLM_API_KEY 未配置，所有裁决将降级 pending")
+        if search is None:
+            print("vendors: BRAVE_API_KEY 未配置，官方域搜索不可用，所有提取将降级 pending")
         corroborations: dict[str, str] = {}
 
         for vendor in config.vendors:
@@ -153,6 +158,7 @@ def run_vendors(args) -> int:
                 ignore_notes: list[str] = []
                 for entry in candidates:  # 新条目先归类（决定该线是否由条目触发）
                     category, why = classify_entry(llm, vendor, entry)
+                    print(f"vendors: {vendor.id} 归类 {entry} -> {category}：{why[:80]}")
                     labels[entry] = (category, why)
                     if category in ("flagship", "sub"):
                         entry_line[entry] = category
@@ -176,6 +182,8 @@ def run_vendors(args) -> int:
                         # 确认失败置 None → apply_judgment 降级 pending 保留旧基线
                         judgment = confirm_from_page(llm, client, vendor, judgment)
                     new_line = finalize_state(apply_judgment(old, judgment, date), date)
+                    print(f"vendors: {vendor.id}/{line.key} -> {new_line.status}："
+                          f"{new_line.reason}")
                     line_states[line.key] = new_line
                     if judgment is not None and new_line.status == "ok":
                         for entry, key in entry_line.items():
@@ -215,6 +223,16 @@ def run_vendors(args) -> int:
                 continue
 
         rows = rows_from_baseline(config, baseline, date, corroborations)
+        status_counts = Counter(
+            line.status for v in baseline.vendors for line in v.lines
+        )
+        print(f"vendors: 线状态汇总：ok={status_counts.get('ok', 0)}"
+              f" pending={status_counts.get('pending', 0)}"
+              f" stale-baseline={status_counts.get('stale-baseline', 0)}"
+              f"，进表 {len(rows)} 行")
+        if not rows:
+            print("vendors: 报告为空：没有任何线同时具备 model/url/release_date，"
+                  "检查上方各线降级原因")
         args.reports_dir.mkdir(parents=True, exist_ok=True)
         report = args.reports_dir / f"各大厂商大模型新鲜度-{date}.md"
         report.write_text(render_markdown(date, rows), encoding="utf-8")

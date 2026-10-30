@@ -96,16 +96,23 @@ def _parse_llm_json(text: str) -> dict | None:
     return data if isinstance(data, dict) else None
 
 
-def _complete_json(llm: LLMClient, user_prompt: str) -> dict | None:
-    """两次循环模式（沿用 intro.py 的 build_intro）：坏 JSON 重试 1 次，LLMError 直接终止。"""
+def _complete_json(llm: LLMClient, user_prompt: str, context: str = "") -> dict | None:
+    """两次循环模式（沿用 intro.py 的 build_intro）：坏 JSON 重试 1 次，LLMError 直接终止。
+
+    失败时打印一行诊断（LLM 失败原因或原始输出片段），供 Actions 日志定位
+    降级环节；程序侧仍由调用方降级，不抛出。
+    """
+    where = f"（{context}）" if context else ""
     for _ in range(2):
         try:
             text = llm.complete(SYSTEM_PROMPT, user_prompt)
-        except LLMError:
+        except LLMError as exc:
+            print(f"vendors: LLM 调用失败{where}：{exc}")
             return None
         parsed = _parse_llm_json(text)
         if parsed is not None:
             return parsed
+    print(f"vendors: LLM 输出两次均非 JSON{where}：{text[:160]!r}")
     return None
 
 
@@ -177,11 +184,15 @@ def classify_entry(llm: LLMClient | None, vendor: VendorConfig, entry_id: str) -
     """目录新条目归类：返回 ('flagship'|'sub'|'ignore', reason)；不可用/失败降级 ('pending', '')。"""
     if llm is None:
         return "pending", ""
-    parsed = _complete_json(llm, _classify_user_prompt(vendor, entry_id))
+    parsed = _complete_json(
+        llm, _classify_user_prompt(vendor, entry_id),
+        context=f"classify {vendor.id}/{entry_id}",
+    )
     if parsed is None:
         return "pending", ""
     category = _clean_str(parsed.get("category"))
     if category is None or category.lower() not in _VALID_CATEGORIES:
+        print(f"vendors: {vendor.id}/{entry_id} 归类输出非法类别：{category!r}")
         return "pending", ""
     return category.lower(), str(parsed.get("reason") or "")
 
@@ -207,21 +218,31 @@ def extract_line(
     )
     try:
         results = search.search(query, count=SEARCH_COUNT)
-    except Exception:
+    except Exception as exc:
+        print(f"vendors: {vendor.id}/{line.key} 官方域搜索失败：{exc!r}")
         return None, []
+    print(f"vendors: {vendor.id}/{line.key} 搜索命中 {len(results)} 条：{query}")
     if isinstance(search_sleep, (int, float)):
         time.sleep(search_sleep)
     elif search_sleep is not None:
         search_sleep(SEARCH_INTERVAL_SECONDS)
     if llm is None:
         return None, results
-    parsed = _complete_json(llm, _extract_user_prompt(vendor, line, results))
+    parsed = _complete_json(
+        llm, _extract_user_prompt(vendor, line, results),
+        context=f"extract {vendor.id}/{line.key}",
+    )
     if parsed is None:
         return None, results
     judgment = _judgment_from_parsed(parsed)
     if judgment.model is None or judgment.release_date is None:
+        print(f"vendors: {vendor.id}/{line.key} 提取材料不足："
+              f"{judgment.reason or '模型/日期为 null'}")
         return None, results
     if not validate_judgment(judgment, vendor.official_domains):
+        print(f"vendors: {vendor.id}/{line.key} 裁决未过校验："
+              f"model={judgment.model} date={judgment.release_date} "
+              f"urls={judgment.source_urls}")
         return None, results
     return judgment, results
 
@@ -241,9 +262,13 @@ def confirm_from_page(
     url = judgment.source_urls[0]
     try:
         resp = request_with_retries(client, "GET", url, follow_redirects=True)
-    except Exception:
+    except Exception as exc:
+        print(f"vendors: 二次确认抓取失败 {url}：{exc!r}")
         return None
-    parsed = _complete_json(llm, _confirm_user_prompt(url, resp.text[:PAGE_TEXT_LIMIT]))
+    parsed = _complete_json(
+        llm, _confirm_user_prompt(url, resp.text[:PAGE_TEXT_LIMIT]),
+        context=f"confirm {url}",
+    )
     if parsed is None:
         return None
     confirmed = Judgment(
@@ -254,7 +279,10 @@ def confirm_from_page(
         reason=str(parsed.get("reason") or ""),
     )
     if confirmed.model is None or confirmed.release_date is None:
+        print(f"vendors: 二次确认页面无模型/日期 {url}："
+              f"{confirmed.reason or '字段为 null'}")
         return None
     if not validate_judgment(confirmed, vendor.official_domains):
+        print(f"vendors: 二次确认未过校验 {url}：evidence={confirmed.evidence}")
         return None
     return confirmed

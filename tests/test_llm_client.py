@@ -46,6 +46,19 @@ def test_all_models_fail_raises_llm_error():
 
 
 @respx.mock
+def test_llm_error_lists_per_model_failure_causes():
+    """全部模型失败时 LLMError 逐模型带失败原因，供降级日志定位（Actions 可观测）。"""
+    respx.post(URL).mock(return_value=httpx.Response(429))
+    llm = LLMClient(api_base="https://openrouter.ai/api/v1", api_key="k", model="m/a:free",
+                    fallback_models=["m/b:free"], sleep=lambda s: None)
+    with pytest.raises(LLMError) as ei:
+        llm.complete("sys", "user")
+    message = str(ei.value)
+    assert "m/a:free" in message and "m/b:free" in message
+    assert "429" in message
+
+
+@respx.mock
 def test_malformed_200_body_falls_through_to_llm_error():
     respx.post(URL).mock(return_value=httpx.Response(200, json={"choices": "not-a-list"}))
     llm = LLMClient(api_base="https://openrouter.ai/api/v1", api_key="k", model="m/a:free",

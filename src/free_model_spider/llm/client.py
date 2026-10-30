@@ -37,13 +37,14 @@ class LLMClient:
         self._sleep = sleep
 
     def complete(self, system: str, user: str) -> str:
+        failures: list[str] = []
         for model in [self.model, *self.fallback_models]:
             try:
                 return self._complete_with_model(model, system, user)
             except (httpx.HTTPStatusError, httpx.TransportError, KeyError, IndexError,
-                    ValueError, TypeError):
-                continue
-        raise LLMError(f"所有模型均不可用: {self.model}, {self.fallback_models}")
+                    ValueError, TypeError) as exc:
+                failures.append(f"{model}({type(exc).__name__}: {exc})")
+        raise LLMError(f"所有模型均不可用：{'; '.join(failures)}")
 
     def _complete_with_model(self, model: str, system: str, user: str) -> str:
         resp = request_with_retries(

@@ -420,3 +420,100 @@ def test_confirm_from_page_llm_error_returns_none():
     llm = FakeLLM(replies=[LLMError("boom")])
     out = confirm_from_page(llm, httpx.Client(), VENDOR, CANDIDATE)
     assert out is None
+
+
+# ---------- 降级诊断日志（Actions 日志定位失败环节） ----------
+
+
+def test_extract_line_logs_query_and_hit_count(capsys):
+    extract_line(FakeLLM([GOOD_EXTRACT_JSON]), FakeSearch(GOOD_SEARCH_RESULTS),
+                 VENDOR, VENDOR.lines[0], None)
+    out = capsys.readouterr().out
+    assert "搜索命中 1 条" in out
+    assert "site:z.ai OR site:chat.z.ai" in out
+
+
+def test_extract_line_logs_search_error(capsys):
+    search = FakeSearch(error=httpx.ConnectError("down"))
+    judgment, _ = extract_line(FakeLLM([GOOD_EXTRACT_JSON]), search,
+                               VENDOR, VENDOR.lines[0], None)
+    assert judgment is None
+    assert "官方域搜索失败" in capsys.readouterr().out
+
+
+def test_extract_line_logs_llm_error_with_context(capsys):
+    llm = FakeLLM(replies=[LLMError("所有模型均不可用：m/a:free(HTTPStatusError: 429)")])
+    judgment, _ = extract_line(llm, FakeSearch(GOOD_SEARCH_RESULTS),
+                               VENDOR, VENDOR.lines[0], None)
+    assert judgment is None
+    out = capsys.readouterr().out
+    assert "LLM 调用失败" in out
+    assert "extract zai/flagship" in out
+    assert "HTTPStatusError: 429" in out
+
+
+def test_extract_line_logs_two_bad_json_with_raw_snippet(capsys):
+    llm = FakeLLM(replies=["not json at all", '{"model": broken'])
+    judgment, _ = extract_line(llm, FakeSearch(GOOD_SEARCH_RESULTS),
+                               VENDOR, VENDOR.lines[0], None)
+    assert judgment is None
+    out = capsys.readouterr().out
+    assert "两次均非 JSON" in out
+    assert "extract zai/flagship" in out
+
+
+def test_extract_line_logs_insufficient_material_reason(capsys):
+    reply = (
+        '{"model": null, "release_date": null, "source_urls": [], '
+        '"evidence": [], "reason": "搜索结果未提及发布日期"}'
+    )
+    judgment, _ = extract_line(FakeLLM([reply]), FakeSearch(GOOD_SEARCH_RESULTS),
+                               VENDOR, VENDOR.lines[0], None)
+    assert judgment is None
+    out = capsys.readouterr().out
+    assert "提取材料不足" in out
+    assert "搜索结果未提及发布日期" in out
+
+
+def test_extract_line_logs_validation_failure(capsys):
+    bad = (
+        '{"model": "GLM-5.3", "release_date": "2026-09-24", '
+        '"source_urls": ["https://techcrunch.com/a"], '
+        '"evidence": ["GLM-5.3 于 2026-09-24 发布"], "reason": ""}'
+    )
+    judgment, _ = extract_line(FakeLLM([bad]), FakeSearch(GOOD_SEARCH_RESULTS),
+                               VENDOR, VENDOR.lines[0], None)
+    assert judgment is None
+    out = capsys.readouterr().out
+    assert "裁决未过校验" in out
+    assert "techcrunch.com" in out
+
+
+def test_classify_entry_logs_invalid_category(capsys):
+    llm = FakeLLM(replies=['{"category": "mainline", "reason": "x"}'])
+    assert classify_entry(llm, VENDOR, "zai/whatever") == ("pending", "")
+    assert "非法类别" in capsys.readouterr().out
+
+
+def test_confirm_from_page_logs_fetch_failure(monkeypatch, capsys):
+    def boom(*args, **kwargs):
+        raise httpx.ConnectError("down")
+
+    monkeypatch.setattr(vendor_judge, "request_with_retries", boom)
+    out = confirm_from_page(FakeLLM([GOOD_EXTRACT_JSON]), httpx.Client(),
+                            VENDOR, CANDIDATE)
+    assert out is None
+    assert "二次确认抓取失败" in capsys.readouterr().out
+
+
+@respx.mock
+def test_confirm_from_page_logs_missing_date(capsys):
+    respx.get(PAGE_URL).respond(200, text="本页介绍 GLM-5.3 的能力与定价，未写发布日期。")
+    llm = FakeLLM(
+        replies=['{"model": "GLM-5.3", "release_date": null, "evidence": [], '
+                 '"reason": "页面原文未出现发布日期"}']
+    )
+    assert confirm_from_page(llm, httpx.Client(), VENDOR, CANDIDATE) is None
+    out = capsys.readouterr().out
+    assert "二次确认页面无模型/日期" in out
+    assert "页面原文未出现发布日期" in out

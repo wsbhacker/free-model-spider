@@ -222,7 +222,7 @@ def _event_setup(repo: Path, monkeypatch, replies: list[str],
 
 @respx.mock
 def test_first_day_without_keys_produces_empty_report_and_pending_baseline(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, capsys
 ):
     repo = tmp_path / "repo"
     _init_repo(repo)
@@ -233,6 +233,12 @@ def test_first_day_without_keys_produces_empty_report_and_pending_baseline(
     _mock_dirs(FULL_DIR, {"zai": {"models": {"glm-5.4-flash": {}}}})
 
     assert main(["vendors", "--date", "2026-10-29", "--no-commit"]) == 0
+
+    out = capsys.readouterr().out
+    assert "LLM_API_KEY 未配置" in out  # 降级原因可观测（Actions 日志）
+    assert "BRAVE_API_KEY 未配置" in out
+    assert "线状态汇总：ok=0 pending=3 stale-baseline=0，进表 0 行" in out
+    assert "报告为空" in out
 
     md = Path(REPORT_MD).read_text("utf-8")
     assert "| 厂商 | 模型 | 发布日 | 天数 |" in md
