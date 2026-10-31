@@ -239,7 +239,7 @@
           "last_verified": null,
           "status": "pending",
           "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
-          "pending_days": 3
+          "pending_days": 4
         },
         {
           "key": "sub",
@@ -249,7 +249,7 @@
           "last_verified": null,
           "status": "pending",
           "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
-          "pending_days": 3
+          "pending_days": 4
         }
       ]
     },
@@ -371,7 +371,7 @@
           "last_verified": null,
           "status": "pending",
           "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
-          "pending_days": 3
+          "pending_days": 4
         },
         {
           "key": "sub",
@@ -381,7 +381,7 @@
           "last_verified": null,
           "status": "pending",
           "reason": "裁决缺失（提取/校验/确认失败），保留原基线转 pending",
-          "pending_days": 3
+          "pending_days": 4
         }
       ]
     },
