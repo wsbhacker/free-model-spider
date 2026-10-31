@@ -798,7 +798,7 @@
             {
               "arena": "models",
               "category": "codecategories",
-              "elo": 1146,
+              "elo": 1145,
               "win_rate": 36,
               "rank": 90
             },
@@ -813,7 +813,7 @@
               "arena": "models",
               "category": "gamedev",
               "elo": 1139,
-              "win_rate": 36.1,
+              "win_rate": 36,
               "rank": 80
             },
             {
@@ -1099,14 +1099,14 @@
               "arena": "models",
               "category": "3d",
               "elo": 1119,
-              "win_rate": 29.1,
+              "win_rate": 28.9,
               "rank": 84
             },
             {
               "arena": "models",
               "category": "codecategories",
               "elo": 1151,
-              "win_rate": 33.1,
+              "win_rate": 33.2,
               "rank": 86
             },
             {
@@ -1127,7 +1127,7 @@
               "arena": "models",
               "category": "website",
               "elo": 1168,
-              "win_rate": 35.2,
+              "win_rate": 35.3,
               "rank": 83
             }
           ],
@@ -1575,16 +1575,16 @@
             {
               "arena": "models",
               "category": "codecategories",
-              "elo": 1205,
-              "win_rate": 42.3,
-              "rank": 61
+              "elo": 1204,
+              "win_rate": 42.2,
+              "rank": 63
             },
             {
               "arena": "models",
               "category": "dataviz",
-              "elo": 1158,
-              "win_rate": 37.7,
-              "rank": 80
+              "elo": 1157,
+              "win_rate": 37.5,
+              "rank": 81
             },
             {
               "arena": "models",
@@ -1596,8 +1596,8 @@
             {
               "arena": "models",
               "category": "svg",
-              "elo": 1106,
-              "win_rate": 34.3,
+              "elo": 1107,
+              "win_rate": 34.4,
               "rank": 63
             },
             {
@@ -1610,7 +1610,7 @@
             {
               "arena": "models",
               "category": "website",
-              "elo": 1224,
+              "elo": 1223,
               "win_rate": 44.7,
               "rank": 58
             }
