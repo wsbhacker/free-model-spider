@@ -74,11 +74,11 @@ Markdown 日报，由 GitHub Actions 每日北京时间 08:30 自动运行并提
 
 | 厂商 | 模型 | 发布日 | 天数 |
 |---|---|---|---|
-| DeepSeek | [DeepSeek-V4.1-Flash-1017](https://api-docs.deepseek.com/updates) | 2026-10-17 | 14 |
-|  | [DeepSeek-V4.1-Flash](https://api-docs.deepseek.com/updates) | 2026-09-10 | 51 |
-| 智谱 AI | [GLM-5.3-Flash](https://docs.z.ai/release-notes/new-released) | 2026-08-26 | 66 |
-|  | [GLM-5.3-Flash](https://docs.z.ai/release-notes/new-released) | 2026-08-26 | 66 |
-| MiniMax | [MiniMax M3.1 Flash](https://www.minimax.io/blog/minimax-m31f) | 2026-10-19 | 12 |
+| DeepSeek | [DeepSeek-V4.1-Flash-1017](https://api-docs.deepseek.com/updates) | 2026-10-17 | 15 |
+|  | [DeepSeek-V4.1-Flash](https://api-docs.deepseek.com/updates) | 2026-09-10 | 52 |
+| 智谱 AI | [GLM-5.3-Flash](https://docs.z.ai/release-notes/new-released) | 2026-08-26 | 67 |
+|  | [GLM-5.3-Flash](https://docs.z.ai/release-notes/new-released) | 2026-08-26 | 67 |
+| MiniMax | [MiniMax M3.1 Flash](https://www.minimax.io/blog/minimax-m31f) | 2026-10-19 | 13 |
 
-> 更新于 2026-10-31
+> 更新于 2026-11-01
 <!-- fms-vendors:end -->
