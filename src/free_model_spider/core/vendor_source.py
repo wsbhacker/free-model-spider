@@ -23,7 +23,9 @@ import httpx
 from free_model_spider.core.vendor_config import VendorConfig
 from free_model_spider.net import request_with_retries
 
-ANNOUNCEMENT_MAX_ENTRIES = 60  # 单源最多收录条数（防失控页面撑爆基线 JSON）
+ANNOUNCEMENT_MAX_ENTRIES = 200  # 单源最多收录条数（防失控页面撑爆基线 JSON；
+#  2026-11-01 由 60 调高：v3 按模型窄匹配查条目，窗口越大越可能拿到官方日期，
+#  anthropic sitemap 日更量大，60 会把一个多月前的模型公告挤出窗口）
 _TITLE_MIN_CHARS = 4
 _DATE_WINDOW = 300  # links 模式锚点前/后各搜日期的字符窗口
 _HEADING_RE = re.compile(r"<h([1-6])\b[^>]*>(.*?)</h\1>", re.S | re.I)

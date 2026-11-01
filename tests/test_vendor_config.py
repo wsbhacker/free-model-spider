@@ -20,40 +20,29 @@ EXPECTED_IDS = [
 ]
 
 VALID_YAML = r"""
-stale_days: 30
 vendors:
   - id: openai
     name: OpenAI
     official_domains: [openai.com]
     directory_slugs: { openrouter: [openai], modelsdev: [openai] }
-    lines:
-      - key: flagship
-        name: GPT 主线
-        match: ['gpt-\d']
-        exclude: [mini, nano]
-      - key: sub
-        name: GPT mini
-        match: ['gpt-\d[\d.]*-?mini']
-  - id: meta
-    name: Meta
-    official_domains: [ai.meta.com]
-    directory_slugs: { openrouter: [meta-llama] }
-    lines:
-      - key: flagship
-        name: Llama 主线
-        match: ['llama-\d']
+    models:
+      - key: gpt-6-1-terra
+        name: GPT-6.1 Terra
+        match: ['gpt[ -]?6\.1[ -]?terra']
+        exclude: [pro]
+      - key: gpt-6-1-mini
+        name: GPT-6.1 mini
+        match: ['gpt[ -]?6\.1[ -]?mini']
+        manual: { date: "2026-10-01", url: "https://openai.com/gpt-6-1-mini" }
 """
 
-FLAGSHIP_MISSING_YAML = r"""
+EMPTY_MODELS_YAML = r"""
 vendors:
   - id: openai
     name: OpenAI
     official_domains: [openai.com]
     directory_slugs: { openrouter: [openai] }
-    lines:
-      - key: sub
-        name: GPT mini
-        match: ['gpt-\d[\d.]*-?mini']
+    models: []
 """
 
 DUPLICATE_KEY_YAML = r"""
@@ -62,13 +51,13 @@ vendors:
     name: OpenAI
     official_domains: [openai.com]
     directory_slugs: { openrouter: [openai] }
-    lines:
-      - key: flagship
-        name: GPT 主线
-        match: ['gpt-\d']
-      - key: flagship
-        name: GPT 主线 二
-        match: ['gpt-\d']
+    models:
+      - key: gpt-6-1-terra
+        name: GPT-6.1 Terra
+        match: ['gpt[ -]?6\.1[ -]?terra']
+      - key: gpt-6-1-terra
+        name: GPT-6.1 Terra 二
+        match: ['gpt[ -]?6\.1[ -]?terra pro']
 """
 
 
@@ -80,8 +69,7 @@ def write_yaml(tmp_path: Path, text: str) -> Path:
 
 def test_load_config_parses_fields(tmp_path):
     config = load_config(write_yaml(tmp_path, VALID_YAML))
-    assert config.stale_days == 30
-    assert [v.id for v in config.vendors] == ["openai", "meta"]
+    assert [v.id for v in config.vendors] == ["openai"]
     openai = config.vendors[0]
     assert openai.name == "OpenAI"
     assert openai.official_domains == ["openai.com"]
@@ -89,69 +77,83 @@ def test_load_config_parses_fields(tmp_path):
         "openrouter": ["openai"],
         "modelsdev": ["openai"],
     }
-    assert [line.key for line in openai.lines] == ["flagship", "sub"]
-    assert openai.lines[0].exclude == ["mini", "nano"]
-    assert openai.lines[0].override is None
+    terra, mini = openai.models
+    assert (terra.key, terra.name) == ("gpt-6-1-terra", "GPT-6.1 Terra")
+    assert terra.exclude == ["pro"]
+    assert terra.manual is None
+    assert mini.manual is not None
+    assert (mini.manual.date, mini.manual.url) == (
+        "2026-10-01", "https://openai.com/gpt-6-1-mini")
 
 
-def test_stale_days_defaults_to_45(tmp_path):
-    text = VALID_YAML.replace("stale_days: 30\n", "")
-    config = load_config(write_yaml(tmp_path, text))
-    assert config.stale_days == 45
-
-
-def test_real_vendor_releases_yml_has_15_vendors():
-    config = load_config(REPO_ROOT / "data" / "vendor_releases.yml")
-    assert [v.id for v in config.vendors] == EXPECTED_IDS
-    for vendor in config.vendors:
-        assert vendor.name
-        assert vendor.official_domains
-        assert vendor.directory_slugs
-        assert vendor.lines
-        assert vendor.lines[0].key == "flagship"
-
-
-def test_missing_flagship_line_raises(tmp_path):
+def test_empty_models_rejected(tmp_path):
     with pytest.raises(ValidationError):
-        load_config(write_yaml(tmp_path, FLAGSHIP_MISSING_YAML))
+        load_config(write_yaml(tmp_path, EMPTY_MODELS_YAML))
 
 
-def test_duplicate_line_key_raises(tmp_path):
-    with pytest.raises(ValidationError):
+def test_duplicate_model_key_raises(tmp_path):
+    with pytest.raises(ValidationError, match="key 重复"):
         load_config(write_yaml(tmp_path, DUPLICATE_KEY_YAML))
 
 
+def test_legacy_line_fields_rejected(tmp_path):
+    """v3 显式不兼容 v2：lines/stale_days 混入必须报错，而不是静默忽略。"""
+    legacy = VALID_YAML.replace(
+        "vendors:", "stale_days: 45\nvendors:", 1).replace(
+        "    models:", "    lines:\n      - key: flagship\n        name: GPT\n"
+        "        match: ['gpt']\n    models:", 1)
+    with pytest.raises(ValidationError):
+        load_config(write_yaml(tmp_path, legacy))
+
+
 def test_yaml_syntax_error_wrapped_as_value_error_with_path(tmp_path):
-    path = write_yaml(tmp_path, "stale_days: 45\nvendors: [unclosed\n")
+    path = write_yaml(tmp_path, "vendors: [unclosed\n")
     with pytest.raises(ValueError, match=re.escape(str(path))):
         load_config(path)
 
 
-def screens_to(line, model_id: str) -> bool:
-    """目录门铃粗筛语义：match 任一 regex（re.search）命中，且 exclude 无子串命中。"""
-    return any(re.search(p, model_id) for p in line.match) and not any(
-        w in model_id for w in line.exclude
-    )
-
-
-def test_real_flash_tier_ids_screen_to_sub_not_flagship():
-    """实测模型 id 必须落入次旗舰线：flagship exclude 拦下、sub match 接住。"""
+def test_real_vendor_releases_yml_shape():
     config = load_config(REPO_ROOT / "data" / "vendor_releases.yml")
-    vendors = {v.id: v for v in config.vendors}
-    cases = [
-        ("moonshot", "kimi-k3.1-pro-highspeed"),
-        ("moonshot", "kimi-k2-flash"),
-        ("deepseek", "deepseek-v4-flash"),
-    ]
-    for vendor_id, model_id in cases:
-        lines = {line.key: line for line in vendors[vendor_id].lines}
-        assert not screens_to(lines["flagship"], model_id), (
-            vendor_id,
-            model_id,
-            "不应命中 flagship",
-        )
-        assert screens_to(lines["sub"], model_id), (
-            vendor_id,
-            model_id,
-            "应命中 sub",
-        )
+    assert [v.id for v in config.vendors] == EXPECTED_IDS
+    total = 0
+    for vendor in config.vendors:
+        assert vendor.name
+        assert vendor.official_domains
+        assert vendor.directory_slugs
+        assert vendor.models
+        total += len(vendor.models)
+        for model in vendor.models:
+            # 窄匹配可编译；不含日期（v3 铁律：清单里不维护日期）
+            for pattern in model.match:
+                re.compile(pattern)
+            assert model.manual is None
+    assert total >= 15  # 8 家 × 至少 2 模型起步
+
+
+def matches_to(model, text: str) -> bool:
+    """模型窄匹配语义：match 任一 regex（re.search）命中，且 exclude 无子串命中。"""
+    return any(re.search(p, text) for p in model.match) and not any(
+        w in text for w in model.exclude)
+
+
+def test_real_model_patterns_are_narrow_and_mutually_exclusive():
+    """同厂商模型 match 必须互斥：任一目录 id/标题不得同时命中两个模型。"""
+    config = load_config(REPO_ROOT / "data" / "vendor_releases.yml")
+    samples = {
+        "openai": ["openai/gpt-6.1-terra-pro", "openai/gpt-6.1-terra",
+                   "openai/gpt-6.1-terra:batch"],
+        "anthropic": ["anthropic/claude-opus-5.5", "anthropic/claude-sonnet-5.5",
+                      "Claude Opus 5.5 发布"],
+        "zhipu": ["z-ai/glm-5.3", "z-ai/glm-5.3-flash", "z-ai/glm-5.3-flashx",
+                  "z-ai/glm-5.3-prime"],
+        "minimax": ["minimax/minimax-m3.1-flash", "minimax/minimax-m31f",
+                    "minimax/minimax-m3"],
+        "qwen": ["qwen/qwen3.8-max-prime", "qwen/qwen3.8-max-0902",
+                 "qwen/qwen3.8-flash"],
+    }
+    for vendor in config.vendors:
+        if vendor.id not in samples:
+            continue
+        for text in samples[vendor.id]:
+            hits = [m.key for m in vendor.models if matches_to(m, text.casefold())]
+            assert len(hits) <= 1, (vendor.id, text, hits, "窄匹配必须互斥")
