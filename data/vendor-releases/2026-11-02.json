@@ -239,7 +239,7 @@
           "last_verified": "2026-11-02",
           "status": "stale-baseline",
           "reason": "pending 连续 7 天未决，冻结为 stale-baseline",
-          "pending_days": 7
+          "pending_days": 8
         },
         {
           "key": "sub",
@@ -249,7 +249,7 @@
           "last_verified": "2026-11-02",
           "status": "stale-baseline",
           "reason": "pending 连续 7 天未决，冻结为 stale-baseline",
-          "pending_days": 7
+          "pending_days": 8
         }
       ]
     },
@@ -371,7 +371,7 @@
           "last_verified": "2026-11-02",
           "status": "stale-baseline",
           "reason": "pending 连续 7 天未决，冻结为 stale-baseline",
-          "pending_days": 7
+          "pending_days": 8
         },
         {
           "key": "sub",
@@ -381,7 +381,7 @@
           "last_verified": "2026-11-02",
           "status": "stale-baseline",
           "reason": "pending 连续 7 天未决，冻结为 stale-baseline",
-          "pending_days": 7
+          "pending_days": 8
         }
       ]
     },
