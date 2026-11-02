@@ -330,15 +330,14 @@ def test_bootstrap_writes_draft_without_commit(tmp_path, monkeypatch):
 
 
 def test_bootstrap_refuses_when_baseline_exists(tmp_path, monkeypatch):
-    _setup(tmp_path, monkeypatch)
+    _, fake = _setup(tmp_path, monkeypatch)  # 断言打桩给生产代码的那个 fake
     path = baseline_path(Path("data"), BASELINE_DATE)
     before = path.read_bytes()
-    fake = FakeBackend({})  # 被拒后不得有任何提问
 
     assert main(["vendors", "--date", DATE, "--bootstrap", "--no-commit"]) == 1
 
     assert path.read_bytes() == before  # 原基线未被覆盖
-    assert fake.queries == []
+    assert fake.queries == []  # 被拒后不得有任何提问
 
 
 # ---------- ⑨：--vendor 只替换该厂商块，其余厂商原样保留 ----------
@@ -368,13 +367,12 @@ def test_bootstrap_vendor_merges_only_that_vendor(tmp_path, monkeypatch):
 
 
 def test_bootstrap_unknown_vendor_id_rejected(tmp_path, monkeypatch):
-    _setup(tmp_path, monkeypatch, baseline=False)
-    fake = FakeBackend({})
+    _, fake = _setup(tmp_path, monkeypatch, baseline=False)  # 断言打桩给生产代码的那个 fake
 
     assert main(["vendors", "--date", DATE, "--bootstrap", "--vendor",
                  "nope", "--no-commit"]) == 1
 
-    assert fake.queries == []
+    assert fake.queries == []  # 拒绝时不得提问
     assert not baseline_path(Path("data"), DATE).exists()
 
 
@@ -423,3 +421,26 @@ def test_removed_vendor_block_carried_forward(tmp_path, monkeypatch):
     oldco = next(v for v in saved.vendors if v.id == "oldco")
     assert oldco.model_dump(by_alias=True) == baseline.vendors[2].model_dump(
         by_alias=True)  # 原样保留（只增不删）
+
+
+# ---------- ⑬：无在表模型——窗口回退 180 天并在当日 -pending 记一行（spec §7.1）----------
+
+
+def test_no_active_models_falls_back_180d_and_records_pending_line(
+        tmp_path, monkeypatch, capsys):
+    repo, fake = _setup(tmp_path, monkeypatch)
+    baseline = _baseline()
+    baseline.vendors[1].models = []  # moonshot 无在表模型 → 窗口回退
+    save_baseline(baseline, baseline_path(Path("data"), BASELINE_DATE))
+    alerts = _capture_alerts(monkeypatch)
+
+    assert main(["vendors", "--date", DATE, "--no-commit"]) == 0
+
+    pending = Path(PENDING_MD).read_text("utf-8")
+    assert "月之暗面：无在表模型，提问窗口回退 180 天" in pending
+    assert "Anthropic" not in pending  # 有在表模型的厂商不记
+    out = capsys.readouterr().out
+    assert "（窗口 2026-05-06）" in out  # moonshot：2026-11-02 - 180 天
+    assert "（窗口 2026-08-14）" in out  # anthropic 窗口不受影响
+    assert [t for t, _ in alerts] == ["大模型新鲜度厂商异常"]  # 信息行也进异常告警
+    assert fake.queries != []  # 照常提问，不跳过

@@ -67,6 +67,11 @@ jobs:
           fi
 
       - name: Upload baseline draft
-        if: ${{ inputs.mode == 'bootstrap' }}
+        # bootstrap 途中任一厂商暂态失败命令即退出 1（spec §8.2），此时已生成草稿的
+        # 厂商也要留档重试；结构性失败可能尚未写任何文件，忽略 no-files
+        if: ${{ always() && inputs.mode == 'bootstrap' }}
         uses: actions/upload-artifact@v6
-        with: {name: vendor-baseline-draft, path: data/vendor-releases/}
+        with:
+          name: vendor-baseline-draft
+          path: data/vendor-releases/
+          if-no-files-found: ignore

@@ -109,6 +109,8 @@ class DifyAgentBackend:
                             payload = sse.json()
                         except ValueError:  # 非 JSON data 行（如 [DONE]、无 data 的 ping）忽略
                             continue
+                        if not isinstance(payload, dict):  # JSON 非 object（如 data: 1）忽略
+                            continue
                         event = payload.get("event")
                         if event in ("agent_message", "message"):
                             buffer.append(payload.get("answer") or "")

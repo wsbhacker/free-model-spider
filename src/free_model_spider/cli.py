@@ -215,6 +215,9 @@ def run_vendors(args) -> int:
                 print(f"vendors: {vendor.id} {reason}，跳过提问")
                 continue
             try:
+                if not state.active_models():  # spec §7.1：无在表模型窗口回退 180 天，当日 -pending 记一行
+                    run_failures.append(PendingLine(
+                        vendor.name, "无在表模型，提问窗口回退 180 天"))
                 window_start_day = window_start(state, date)
                 query = build_daily_query(
                     vendor.name, vendor.aliases, vendor.official_domains,

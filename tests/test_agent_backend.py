@@ -193,6 +193,19 @@ def test_non_json_data_lines_are_ignored():
 
 
 @respx.mock
+def test_non_dict_json_data_line_ignored():
+    # data: 1 能 json.loads 成功但非 object，payload.get 会 AttributeError，须同样忽略
+    respx.post(URL).mock(return_value=httpx.Response(
+        200, headers=SSE_HEADERS,
+        content=b"data: 1\n\n"
+                + _sse({"event": "agent_message", "answer": "好"}, {"event": "message_end"}),
+    ))
+    backend = DifyAgentBackend(httpx.Client(), BASE, "t")
+
+    assert backend.ask("q").text == "好"
+
+
+@respx.mock
 def test_2xx_non_sse_body_is_transient_with_content_type():
     # httpx 的 text= 快捷方式固定 text/plain，这里显式给 CF 登录页的 text/html
     respx.post(URL).mock(return_value=httpx.Response(
