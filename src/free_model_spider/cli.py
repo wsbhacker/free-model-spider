@@ -1,9 +1,7 @@
 import argparse
 import os
-import re
 import subprocess
 import time
-from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -20,11 +18,8 @@ from free_model_spider.core.snapshot import (
     save_snapshot,
     snapshot_path,
 )
-from free_model_spider.core.vendor_config import LineConfig, VendorConfig, load_config
-from free_model_spider.core.vendor_judge import (
-    classify_entry,
-    extract_from_article,
-)
+from free_model_spider.core.vendor_config import VendorConfig, load_config
+from free_model_spider.core.vendor_confirm import resolve_model
 from free_model_spider.core.vendor_report import (
     pending_rows_from_baseline,
     render_json,
@@ -33,25 +28,22 @@ from free_model_spider.core.vendor_report import (
     rows_from_baseline,
     update_readme_freshness,
 )
-from free_model_spider.core.vendor_source import (
-    AnnouncementEntry,
-    fetch_listings,
-)
+from free_model_spider.core.vendor_source import fetch_listings
 from free_model_spider.core.vendor_stats import (
-    LineState,
+    DirectoryRecord,
+    ModelState,
     VendorState,
-    apply_judgment,
     baseline_path,
     collect_directory_entries,
+    discover_unmaintained,
     empty_baseline,
-    finalize_state,
     find_latest_baseline,
-    line_matches,
+    is_variant_record,
     load_baseline,
+    model_matches,
     save_baseline,
-    screen_new_entries,
 )
-from free_model_spider.llm.client import LLMClient, build_llm_client
+from free_model_spider.llm.client import build_llm_client
 from free_model_spider.search import build_search_provider
 from free_model_spider.sources import available_sources, create_source
 from free_model_spider.sources.base import sort_records
@@ -82,291 +74,149 @@ def _git_commit(date: str, data_dir: Path, reports_dir: Path, readme: Path,
             return
         result.check_returncode()  # 真实 git 故障 → 非零退出，Actions 红灯（spec §11）
     if os.environ.get("GITHUB_ACTIONS") == "true":
+        # daily / vendors 两个 workflow 共用 concurrency group 串行；排队的那个 checkout 的
+        # 是触发时刻的 SHA，前一个已 push 则本地落后，先 rebase 到远端最新再 push
+        subprocess.run(["git", "pull", "--rebase", "--autostash"], check=True)
         subprocess.run(["git", "push"], check=True)
 
 
-def _freeze_content(vendor_name: str, line_name: str, pending_days: int) -> str:
-    """冻结告警正文：厂商/线/pending 天数 + 运行链接（非 Actions 环境为空串）。"""
-    link = run_link()
-    tail = f"\n{link}" if link else ""
-    return (f"{vendor_name}「{line_name}」pending 连续 {pending_days} 天未决，"
-            f"已冻结为 stale-baseline{tail}")
-
-
-def _slug(text: str) -> str:
-    """模型名/目录 id 的归一化形态（仅小写字母数字），用于 ⧉ 佐证模糊匹配。"""
-    return re.sub(r"[^a-z0-9]", "", text.casefold())
-
-
-def _attach_corroboration(
-    vendor: VendorConfig,
-    line: LineConfig,
-    model: str,
-    directory_entries: list[str],
-    corroborations: dict[str, str],
-) -> None:
-    """线当日确认成功后，取门筛命中的首个 OpenRouter 条目拼平台页佐证（⧉，非关键）。"""
-    model_slug = _slug(model)
-    if not model_slug:
-        return
-    entry = next(
-        (
-            e
-            for e in directory_entries
-            if "/" in e and model_slug in _slug(e) and line_matches(line, e.casefold())
-        ),
-        None,
-    )
-    if entry:
-        corroborations[model] = f"https://openrouter.ai/{entry}"
-
-
-def _announcement_key(url: str, title: str) -> str:
-    """公告条目去重键：headings/json 模式条目共享列表页 URL，必须带标题区分。"""
-    return f"{url}::{title.casefold()}"
-
-
-def _bootstrap_vendor(
-    vendor: VendorConfig,
-    state: VendorState,
-    listings: list[AnnouncementEntry],
-    llm: LLMClient | None,
-    client: httpx.Client,
-    date: str,
-    directory_entries: list[str],
-    corroborations: dict[str, str],
-    failures: list[str],
-) -> None:
-    """首跑/基线迁移初始化（v2 spec §4）：每线取门筛命中的日期最新公告做种子
-    （每线至多 1 次提取），其余条目全部入 seen——杜绝 v1 首跑 329 次调用重演。
-
-    LLM 未配置时不入 seen（配置好后次日整体重试）；公告列表为空同样不入 seen，
-    待列表可解析后自动重跑 bootstrap。种子提取失败追加到 failures（收尾统一告警）。
-    """
-    if llm is None or not listings:
-        return
-    line_states = {line_state.key: line_state for line_state in state.lines}
-    failed_keys: set[str] = set()
-    for line in vendor.lines:
-        if line.override is not None:
+def _corroboration_map(
+    vendor: VendorConfig, records: list[DirectoryRecord]
+) -> dict[str, str]:
+    """model.key -> ⧉ 平台页 URL：OpenRouter 家条目优先，无则 models.dev（非关键佐证）。"""
+    result: dict[str, str] = {}
+    for model in vendor.models:
+        matched = [r for r in records if model_matches(model, r.id.casefold())]
+        openrouter = next(
+            (r for r in matched
+             if r.origin == "openrouter" and not is_variant_record(r)), None)
+        if openrouter is not None:
+            result[model.key] = f"https://openrouter.ai/{openrouter.id}"
             continue
-        candidates = [
-            entry
-            for entry in listings
-            if entry.date and line_matches(line, entry.title.casefold())
-        ]
-        if not candidates:
-            continue
-        newest = max(candidates, key=lambda entry: entry.date)  # 平局取文档序在前（更新）
-        judgment = extract_from_article(llm, client, vendor, line, newest.url)
-        # finalize 统一在本厂商收尾循环做：冻结迁移告警恰一次，裁决阶段只合入裁决
-        new_line = apply_judgment(line_states[line.key], judgment, date)
-        line_states[line.key] = new_line
-        print(f"vendors: {vendor.id}/{line.key} bootstrap <- {newest.title[:60]} -> "
-              f"{new_line.status}：{new_line.reason}")
-        if judgment is None:
-            failed_keys.add(_announcement_key(newest.url, newest.title))
-            failures.append(f"{vendor.id}/{line.key} 种子提取失败：{newest.title[:50]}")
-        elif new_line.status == "ok":
-            _attach_corroboration(vendor, line, new_line.model, directory_entries,
-                                  corroborations)
-    for i, line_state in enumerate(state.lines):
-        if line_state.key in line_states:
-            state.lines[i] = line_states[line_state.key]
-    state.seen_announcement_urls = [
-        _announcement_key(entry.url, entry.title)
-        for entry in listings
-        if _announcement_key(entry.url, entry.title) not in failed_keys
-    ]
-
-
-def _process_new_announcements(
-    vendor: VendorConfig,
-    state: VendorState,
-    listings: list[AnnouncementEntry],
-    llm: LLMClient | None,
-    client: httpx.Client,
-    date: str,
-    directory_entries: list[str],
-    corroborations: dict[str, str],
-    failures: list[str],
-) -> None:
-    """日常增量：只处理未入 seen 的新公告条目——门筛定位线，文章页提取裁决。
-
-    终态（ignore / 线裁决非 pending）入 seen；提取或归类失败次日重试（条目仍在
-    列表页的前提下），失败追加到 failures（收尾统一告警；LLM 全局未配置属
-    已知降级，不计入）。列表页条目按文档序处理（通常新→旧，防倒退拒绝兜底乱序）。
-    """
-    seen = set(state.seen_announcement_urls)
-    new_entries = [
-        entry
-        for entry in listings
-        if _announcement_key(entry.url, entry.title) not in seen
-    ]
-    if not new_entries:
-        return
-    line_states = {line_state.key: line_state for line_state in state.lines}
-    labels: dict[str, tuple[str, str]] = {}
-    for entry in new_entries:
-        gated = [
-            line
-            for line in vendor.lines
-            if line.override is None and line_matches(line, entry.title.casefold())
-        ]
-        if gated:  # 命中唯一线直接采用；多线命中取配置序在前（flagship 优先），不烧 LLM
-            labels[entry.url + entry.title] = (gated[0].key,
-                                               "门筛命中" if len(gated) == 1 else "多线命中取首")
-        else:
-            category, why = classify_entry(llm, vendor, entry.title)
-            print(f"vendors: {vendor.id} 归类 {entry.title[:60]} -> {category}：{why[:80]}")
-            labels[entry.url + entry.title] = (category, why)
-            if category == "pending" and llm is not None:
-                failures.append(f"{vendor.id} 归类失败：{entry.title[:50]}")
-
-    for entry in new_entries:
-        category, _ = labels[entry.url + entry.title]
-        if category == "ignore":
-            state.seen_announcement_urls.append(
-                _announcement_key(entry.url, entry.title))
-            continue
-        if category not in ("flagship", "sub"):
-            continue  # 归类失败（pending）：不入 seen，次日重试
-        line = next(line for line in vendor.lines if line.key == category)
-        judgment = extract_from_article(llm, client, vendor, line, entry.url)
-        new_line = apply_judgment(line_states[line.key], judgment, date)
-        print(f"vendors: {vendor.id}/{line.key} <- {entry.title[:60]} -> "
-              f"{new_line.status}：{new_line.reason}")
-        line_states[line.key] = new_line
-        if judgment is None and llm is not None:
-            failures.append(f"{vendor.id}/{line.key} 提取失败：{entry.title[:50]}")
-        if judgment is not None and new_line.status == "ok":
-            _attach_corroboration(vendor, line, new_line.model, directory_entries,
-                                  corroborations)
-        if new_line.status != "pending":
-            state.seen_announcement_urls.append(
-                _announcement_key(entry.url, entry.title))
-    for i, line_state in enumerate(state.lines):
-        if line_state.key in line_states:
-            state.lines[i] = line_states[line_state.key]
+        modelsdev = next((r for r in matched if r.origin == "modelsdev"), None)
+        if modelsdev is not None:
+            provider, _, model_id = modelsdev.id.partition(":")
+            result[model.key] = f"https://models.dev/{provider}/{model_id}"
+    return result
 
 
 def run_vendors(args) -> int:
-    """fms vendors 编排 v2：官网公告爬取主通道 + 目录双源佐证（redesign spec §4）。
+    """fms vendors 编排 v3：人工圈定模型清单 + 全自动日期提取（spec 2026-11-01 §5）。
 
-    每厂商：override 直接采用 → 公告页增量/bootstrap 裁决 → 目录新条目审计 →
-    逐线收尾（ok 重臂 / pending 满期冻结）。厂商循环内 try/except 单厂商隔离；
-    整个编排由顶层 try/except 兜底：未捕获异常先告警再非零退出。
+    每厂商：公告列表抓取（失败=暂态）→ 逐未确认模型按通道优先级解析（confirmed
+    跳过、manual 恒生效）→ 目录未维护新模型发现告警 → 全量条目入 seen。
+    厂商循环内 try/except 单厂商隔离；顶层 try/except 兜底先告警再非零退出。
     """
     date = args.date or datetime.now(SHANGHAI).strftime("%Y-%m-%d")
     client = httpx.Client(timeout=60, follow_redirects=True,
                           headers={"User-Agent": BROWSER_UA})
     failed: list[str] = []
-    run_failures: list[str] = []  # 当次运行提取/归类失败明细（收尾统一告警）
+    run_failures: list[str] = []  # 当次运行提取失败/公告源不可用明细（收尾统一告警）
     try:
         config = load_config(args.config)
         latest = find_latest_baseline(args.data_dir, date)
+        first_run = latest is None
         baseline = load_baseline(latest) if latest else empty_baseline(date, config)
         baseline.date = date
         states = {v.id: v for v in baseline.vendors}
         for vendor in config.vendors:
             state = states.get(vendor.id)
-            if state is None:  # 配置新增厂商：补全 pending 线随当日基线落盘
+            if state is None:  # 配置新增厂商：补全 unconfirmed 模型随当日基线落盘
                 state = VendorState(id=vendor.id)
-                state.lines = [LineState(key=line.key) for line in vendor.lines]
+                state.models = [ModelState(key=m.key, name=m.name)
+                                for m in vendor.models]
                 states[vendor.id] = state
                 baseline.vendors.append(state)
                 continue
-            existing = {line_state.key for line_state in state.lines}
-            for line in vendor.lines:  # 既有厂商配置新增产品线：同样补 pending 线
-                if line.key not in existing:
-                    state.lines.append(LineState(key=line.key))
-        entries_by_vendor, dir_errors = collect_directory_entries(client, config)
+            model_states = {m.key: m for m in state.models}
+            for model in vendor.models:  # 新增模型补条目；展示名以 yml 为准即时生效
+                if model.key in model_states:
+                    model_states[model.key].name = model.name
+                else:
+                    state.models.append(ModelState(key=model.key, name=model.name))
+        records_by_vendor, dir_errors = collect_directory_entries(client, config)
         for error in dir_errors:
             print(f"vendors: 目录采集降级：{error}")
         llm = build_llm_client(client)
         if llm is None:
-            print("vendors: LLM_API_KEY 未配置，公告裁决将降级 pending")
+            print("vendors: LLM_API_KEY 未配置，有公告源厂商的模型将保持未确认（次日重试）")
         corroborations: dict[str, str] = {}
 
         for vendor in config.vendors:
             state = states[vendor.id]
-            directory_entries = entries_by_vendor.get(vendor.id, [])
+            records = records_by_vendor.get(vendor.id, [])
             try:
-                for line in vendor.lines:
-                    if line.override is None:
-                        continue
-                    # override 线载入即直接采用，跳过公告裁决（v1 spec §5）
-                    for i, line_state in enumerate(state.lines):
-                        if line_state.key == line.key:
-                            state.lines[i] = LineState(
-                                key=line.key, model=line.override.model,
-                                release_date=line.override.release_date,
-                                url=line.override.source, status="ok",
-                                reason="override 直接采用", last_verified=date,
-                            )
-                if not vendor.announcements:
-                    print(f"vendors: {vendor.id} 无公告源配置：仅目录佐证与收尾"
-                          f"（需人工 override 兜底）")
-                else:
-                    listings, list_errors = fetch_listings(client, vendor)
+                listings = None
+                if vendor.announcements:
+                    merged, list_errors = fetch_listings(client, vendor)
                     for error in list_errors:
                         print(f"vendors: {vendor.id} 公告列表抓取降级：{error}")
-                    if not listings and vendor.announcements:
-                        print(f"vendors: {vendor.id} 公告列表解析零条目："
-                              f"疑似上游改版，沿用昨日基线")
-                    if not state.seen_announcement_urls:
-                        _bootstrap_vendor(vendor, state, listings, llm, client, date,
-                                          directory_entries, corroborations,
-                                          run_failures)
-                    else:
-                        _process_new_announcements(vendor, state, listings, llm, client,
-                                                   date, directory_entries,
-                                                   corroborations, run_failures)
-                # 目录新条目审计（v2：门铃降级为"公告页没动静"的提示信号，spec §2）
-                fresh_dir = screen_new_entries(vendor, state, directory_entries)
-                if fresh_dir and not vendor.announcements:
-                    print(f"vendors: {vendor.id} 目录新条目 {len(fresh_dir)} 个但无公告源，"
-                          f"人工关注：{fresh_dir[:3]}")
-                    state.seen_directory_ids.extend(fresh_dir)
-                elif fresh_dir:
-                    print(f"vendors: {vendor.id} 目录新条目 {len(fresh_dir)} 个")
-                    state.seen_directory_ids.extend(fresh_dir)
-                # 逐线收尾：ok 重臂 / pending 满期冻结（状态机出口唯一，冻结告警恰一次）
-                line_names = {line.key: line.name for line in vendor.lines}
-                for i, line_state in enumerate(state.lines):
-                    new_line = finalize_state(line_state, date)
-                    state.lines[i] = new_line
-                    if (new_line.status == "stale-baseline"
-                            and line_state.status != "stale-baseline"):
-                        print(f"vendors: {vendor.id}/{new_line.key} 冻结为 stale-baseline")
-                        send_alert(client, "大模型新鲜度厂商冻结", _freeze_content(
-                            vendor.name, line_names.get(new_line.key, new_line.key),
-                            new_line.pending_days))
+                    listings = merged if merged else None  # 空=当日不可用（暂态）
+                    if listings is None:
+                        print(f"vendors: {vendor.id} 公告列表当日不可用，"
+                              f"未确认模型保持未确认次日重试")
+                else:
+                    print(f"vendors: {vendor.id} 无公告源：未确认模型走目录日期通道")
+                model_states = {m.key: m for m in state.models}
+                for model in vendor.models:
+                    if model.manual is not None:  # manual 纠偏恒生效（覆盖既有 confirmed）
+                        model_states[model.key] = resolve_model(
+                            vendor, model, listings, records, llm, client, date)
+                        continue
+                    current = model_states.get(model.key)
+                    if current is not None and current.status == "confirmed":
+                        current.last_verified = date  # 事实永固，仅记核实日
+                        continue
+                    new_state = resolve_model(
+                        vendor, model, listings, records, llm, client, date)
+                    print(f"vendors: {vendor.id}/{model.key} -> "
+                          f"{new_state.status}：{new_state.reason}")
+                    model_states[model.key] = new_state
+                    if (new_state.status == "unconfirmed"
+                            and "暂态" in new_state.reason):
+                        run_failures.append(
+                            f"{vendor.id}/{model.key} {new_state.reason}")
+                state.models = list(model_states.values())
+                corroborations.update(_corroboration_map(vendor, records))
+
+                unmaintained = discover_unmaintained(vendor, state, records)
+                if unmaintained and first_run:
+                    print(f"vendors: {vendor.id} 首跑播种：目录条目全部入 seen，"
+                          f"未维护条目 {len(unmaintained)} 个不告警")
+                elif unmaintained:
+                    print(f"vendors: {vendor.id} 发现未维护新模型 {len(unmaintained)} 个："
+                          f"{unmaintained[:3]}")
+                    link = run_link()
+                    tail = f"\n{link}" if link else ""
+                    send_alert(client, "发现未维护新模型",
+                               f"{date} {vendor.name} 目录出现不匹配任何已维护模型的新条目：\n"
+                               + "\n".join(f"- {item}" for item in unmaintained[:3])
+                               + "\n决定追踪就加入 data/vendor_releases.yml 的 models" + tail)
+                seen = {entry.casefold() for entry in state.seen_directory_ids}
+                for record in records:  # 全部当日条目入 seen（含命中模型的）
+                    folded = record.id.casefold()
+                    if folded not in seen:
+                        state.seen_directory_ids.append(folded)
+                        seen.add(folded)
             except Exception as exc:  # 单厂商隔离：一家失败只损失该家，其余照常出报告
                 failed.append(vendor.id)
                 print(f"vendors: {vendor.id} 处理失败，跳过该厂商：{exc!r}")
-                for i, line_state in enumerate(state.lines):
-                    state.lines[i] = line_state.model_copy(
-                        update={"reason": f"厂商处理失败：{exc!r}"})
                 continue
 
         rows = rows_from_baseline(config, baseline, date, corroborations)
-        status_counts = Counter(
-            line.status for v in baseline.vendors for line in v.lines
-        )
-        summary = (f"线状态汇总：ok={status_counts.get('ok', 0)}"
-                   f" pending={status_counts.get('pending', 0)}"
-                   f" stale-baseline={status_counts.get('stale-baseline', 0)}")
+        confirmed = sum(1 for v in baseline.vendors for m in v.models
+                        if m.status == "confirmed")
+        unconfirmed = sum(1 for v in baseline.vendors for m in v.models
+                          if m.status == "unconfirmed")
+        summary = f"模型状态汇总：confirmed={confirmed} unconfirmed={unconfirmed}"
         print(f"vendors: {summary}，进表 {len(rows)} 行")
         if not rows:
-            print("vendors: 报告为空：没有任何线同时具备 model/url/release_date，"
-                  "检查上方各线降级原因")
+            print("vendors: 报告为空：没有任何已确认模型，检查上方各模型未确认原因")
         if run_failures or failed:
-            # 当日异常摘要告警：冻结/顶层崩溃各有独立告警，这里只收提取/归类
-            # 失败与单厂商异常（原版只打印不发，Actions 红灯之外的静默缺口）。
+            # 当日异常摘要告警：提取失败/公告源不可用/单厂商异常（静默缺口，spec §7）
             content_lines = [f"{date} 厂商新鲜度当日异常："]
             if run_failures:
-                content_lines.append("公告提取/归类失败（详见 Actions 日志，条目次日自动重试）：")
+                content_lines.append("暂态失败（详见 Actions 日志，次日自动重试）：")
                 content_lines += [f"- {item}" for item in run_failures]
             if failed:
                 content_lines.append(f"厂商处理失败（当日整体跳过）：{'、'.join(failed)}")
@@ -381,7 +231,7 @@ def run_vendors(args) -> int:
         report.with_suffix(".json").write_text(render_json(date, rows), encoding="utf-8")
         pending_rows = pending_rows_from_baseline(config, baseline)
         if pending_rows or failed:
-            # 有错才有：未决线明细（-pending 后缀），随 reports 目录一并提交
+            # 有错才有：未确认模型明细（-pending 后缀），随 reports 目录一并提交
             pending_report = args.reports_dir / f"各大厂商大模型新鲜度-{date}-pending.md"
             pending_report.write_text(
                 render_pending_markdown(date, pending_rows, failed), encoding="utf-8")
@@ -402,7 +252,6 @@ def run_vendors(args) -> int:
         print(f"失败厂商：{'、'.join(failed)}")
         return 1
     return 0
-
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="fms")

@@ -1,11 +1,11 @@
-"""LLM 裁决管线：防捏造 prompt 基座、条目归类、官方文章页提取（v2，spec §4）。
+"""LLM 裁决管线：防捏造 prompt 基座与官方文章页提取（v3，spec §4 通道 1）。
 
 所有 LLM 调用共用 SYSTEM_PROMPT（v1 spec §7.1 五条硬约束），程序侧
 validate_judgment 兜底校验 evidence 与官方域白名单——不信任提示词，
-校验不过一律降级 None（pending）。
+校验不过一律降级 None（unconfirmed）。
 
-v2 变更：Brave 搜索链路移除。日期真值 = 官网公告文章页原文，
-extract_from_article 抓页面正文一次性提取 model/release_date。
+v3 变更：classify_entry 归类整体删除（清单即追踪范围）；日期真值仍是
+官网公告文章页原文，extract_from_article 抓页面正文一次性提取 model/release_date。
 """
 
 import json
@@ -16,7 +16,7 @@ from urllib.parse import urlsplit
 import httpx
 from pydantic import BaseModel, Field
 
-from free_model_spider.core.vendor_config import LineConfig, VendorConfig
+from free_model_spider.core.vendor_config import VendorConfig
 from free_model_spider.llm.client import LLMClient, LLMError
 from free_model_spider.net import request_with_retries
 
@@ -37,7 +37,6 @@ SYSTEM_PROMPT = (
 
 ARTICLE_TEXT_LIMIT = 12000  # 文章页正文截断（导航噪声在前，日期通常在首个内容屏）
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-_VALID_CATEGORIES = {"flagship", "sub", "ignore"}
 
 # evidence 日期核对支持的原文格式：ISO/斜杠、英文月名（月前/日前）、中文年月日。
 # 不用 dateutil fuzzy 解析：中文日期不支持，且会被版本号等数字噪声带偏；
@@ -181,54 +180,19 @@ def _clean_str_list(value: object) -> list[str]:
     return [str(item).strip() for item in value if str(item).strip()]
 
 
-def _lines_block(vendor: VendorConfig) -> str:
-    return "\n".join(
-        f"- {line.key}：{line.name}（匹配正则：{line.match}，排除：{line.exclude or '无'}）"
-        for line in vendor.lines
-    )
-
-
-def _classify_user_prompt(vendor: VendorConfig, entry_title: str) -> str:
-    return (
-        f"厂商：{vendor.name}\n"
-        f"产品线定义：\n{_lines_block(vendor)}\n"
-        f"官方公告标题：{entry_title}\n"
-        "任务：只依据以上材料判断该公告归属哪条产品线；"
-        "ignore 表示非模型发布公告（活动/政策/研究/招聘等）或衍生专用模型（不属于任何线）。\n"
-        '只输出一个 JSON 对象：{"category": "flagship|sub|ignore", "reason": "一句话理由"}'
-    )
-
-
 def _article_user_prompt(
-    vendor: VendorConfig, line: LineConfig, url: str, page_text: str
+    vendor: VendorConfig, model_name: str, url: str, page_text: str
 ) -> str:
     domains = "、".join(vendor.official_domains)
     return (
         f"厂商：{vendor.name}（官方域白名单：{domains}）\n"
-        f"目标产品线：{line.name}（key={line.key}）\n"
+        f"目标模型：{model_name}\n"
         f"官方公告页原文（URL：{url}）：\n{page_text}\n"
         "任务：只依据以上页面原文，提取该公告发布的模型名称与发布日期（YYYY-MM-DD）。"
-        "页面原文里没有的日期一律输出 null，禁止从 URL 或模型名推算。\n"
+        "页面原文里没有的日期一律输出 null，禁止从 URL 或模型名推算。"
         '只输出一个 JSON 对象：{"model": "模型名或null", "release_date": "YYYY-MM-DD或null", '
         '"evidence": ["页面原文摘句"], "reason": "页面未包含时说明"}'
     )
-
-
-def classify_entry(llm: LLMClient | None, vendor: VendorConfig, entry_title: str) -> tuple[str, str]:
-    """公告条目归类：返回 ('flagship'|'sub'|'ignore', reason)；不可用/失败降级 ('pending', '')。"""
-    if llm is None:
-        return "pending", ""
-    parsed = _complete_json(
-        llm, _classify_user_prompt(vendor, entry_title),
-        context=f"classify {vendor.id}/{entry_title[:60]}",
-    )
-    if parsed is None:
-        return "pending", ""
-    category = _clean_str(parsed.get("category"))
-    if category is None or category.lower() not in _VALID_CATEGORIES:
-        print(f"vendors: {vendor.id} 公告归类输出非法类别：{category!r}")
-        return "pending", ""
-    return category.lower(), str(parsed.get("reason") or "")
 
 
 def strip_html(html: str) -> str:
@@ -242,12 +206,12 @@ def extract_from_article(
     llm: LLMClient | None,
     client: httpx.Client,
     vendor: VendorConfig,
-    line: LineConfig,
+    model_name: str,
     url: str,
 ) -> Judgment | None:
     """抓官方公告文章页原文，LLM 一次性提取 model/release_date 并校验。
 
-    任何失败（网络、LLM、解析、无日期、validate 不过）→ None，保留旧基线转 pending。
+    任何失败（网络、LLM、解析、无日期、validate 不过）→ None（保持 unconfirmed）。
     source_urls 固定回填被抓取的公告页 URL（官方域白名单已在 validate 兜底）。
     """
     if llm is None:
@@ -255,12 +219,12 @@ def extract_from_article(
     try:
         resp = request_with_retries(client, "GET", url, follow_redirects=True)
     except Exception as exc:
-        print(f"vendors: {vendor.id}/{line.key} 公告页抓取失败 {url}：{exc!r}")
+        print(f"vendors: {vendor.id}/{model_name} 公告页抓取失败 {url}：{exc!r}")
         return None
     parsed = _complete_json(
         llm,
-        _article_user_prompt(vendor, line, url, strip_html(resp.text)[:ARTICLE_TEXT_LIMIT]),
-        context=f"extract {vendor.id}/{line.key}",
+        _article_user_prompt(vendor, model_name, url, strip_html(resp.text)[:ARTICLE_TEXT_LIMIT]),
+        context=f"extract {vendor.id}/{model_name}",
     )
     if parsed is None:
         return None
@@ -272,11 +236,11 @@ def extract_from_article(
         reason=str(parsed.get("reason") or ""),
     )
     if judgment.model is None or judgment.release_date is None:
-        print(f"vendors: {vendor.id}/{line.key} 公告页未含模型/日期 {url}："
+        print(f"vendors: {vendor.id}/{model_name} 公告页未含模型/日期 {url}："
               f"{judgment.reason or '字段为 null'}")
         return None
     if not validate_judgment(judgment, vendor.official_domains):
-        print(f"vendors: {vendor.id}/{line.key} 提取未过校验 {url}："
+        print(f"vendors: {vendor.id}/{model_name} 提取未过校验 {url}："
               f"model={judgment.model} date={judgment.release_date} "
               f"evidence={judgment.evidence}")
         return None

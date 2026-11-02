@@ -6,7 +6,7 @@ import respx
 
 from free_model_spider.core.vendor_config import (
     AnnouncementSource,
-    LineConfig,
+    ModelConfig,
     VendorConfig,
 )
 from free_model_spider.core.vendor_source import (
@@ -149,7 +149,8 @@ def test_parse_links_relative_url_joined_and_fragment_stripped():
 
 def test_parse_links_short_titles_skipped_and_cap_applied():
     html = "".join(
-        f'<a href="/p{i}">Title {i} something</a>' for i in range(70)
+        f'<a href="/p{i}">Title {i} something</a>'
+        for i in range(ANNOUNCEMENT_MAX_ENTRIES + 10)
     )
     entries = parse(html)
     assert len(entries) == ANNOUNCEMENT_MAX_ENTRIES
@@ -189,7 +190,7 @@ VENDOR = VendorConfig(
         AnnouncementSource(name="changelog", url="https://www.example.com/updates",
                            mode="headings"),
     ],
-    lines=[LineConfig(key="flagship", name="GLM 主线", match=[r"glm-\d"])],
+    models=[ModelConfig(key="glm", name="GLM", match=[r"glm-\d"])],
 )
 
 

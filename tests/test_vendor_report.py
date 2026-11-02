@@ -1,15 +1,15 @@
 from pathlib import Path
 
 from free_model_spider.core.vendor_config import (
-    LineConfig,
+    ModelConfig,
     VendorConfig,
     VendorReleasesConfig,
 )
 from free_model_spider.core.vendor_report import (
     FMS_VENDORS_END,
     FMS_VENDORS_START,
+    ModelRow,
     PendingRow,
-    VendorRow,
     pending_rows_from_baseline,
     render_json,
     render_markdown,
@@ -17,41 +17,34 @@ from free_model_spider.core.vendor_report import (
     rows_from_baseline,
     update_readme_freshness,
 )
-from free_model_spider.core.vendor_stats import Baseline, LineState, VendorState
+from free_model_spider.core.vendor_stats import Baseline, ModelState, VendorState
 
 
 def make_config() -> VendorReleasesConfig:
     return VendorReleasesConfig(
-        stale_days=45,
         vendors=[
             VendorConfig(
                 id="openai",
                 name="OpenAI",
                 official_domains=["openai.com"],
                 directory_slugs={"openrouter": ["openai"]},
-                lines=[
-                    LineConfig(key="flagship", name="GPT 主线", match=[r"gpt-\d"]),
-                    LineConfig(key="sub", name="GPT mini", match=["mini"]),
-                ],
-            ),
-            VendorConfig(
-                id="anthropic",
-                name="Anthropic",
-                official_domains=["anthropic.com"],
-                directory_slugs={"openrouter": ["anthropic"]},
-                lines=[
-                    LineConfig(key="flagship", name="Claude Opus 主线", match=[r"opus"]),
-                    LineConfig(key="sub", name="Claude Sonnet 主线", match=[r"sonnet"]),
+                models=[
+                    ModelConfig(key="gpt-6-1-terra", name="GPT-6.1 Terra",
+                                match=[r"gpt[ -]?6\.1[ -]?terra"]),
+                    ModelConfig(key="gpt-6-1-mini", name="GPT-6.1 mini",
+                                match=[r"gpt[ -]?6\.1[ -]?mini"]),
                 ],
             ),
             VendorConfig(
                 id="zhipu",
                 name="智谱 AI",
                 official_domains=["z.ai"],
-                directory_slugs={"openrouter": ["z-ai"], "modelsdev": ["z-ai"]},
-                lines=[
-                    LineConfig(key="flagship", name="GLM 主线", match=[r"glm-\d"]),
-                    LineConfig(key="sub", name="GLM FlashX", match=["flashx"]),
+                directory_slugs={"openrouter": ["z-ai"]},
+                models=[
+                    ModelConfig(key="glm-5-3", name="GLM-5.3",
+                                match=[r"glm[ -]?5\.3"], exclude=["flash"]),
+                    ModelConfig(key="glm-5-3-flash", name="GLM-5.3 Flash",
+                                match=[r"glm[ -]?5\.3[ -]?flash"]),
                 ],
             ),
         ],
@@ -60,63 +53,35 @@ def make_config() -> VendorReleasesConfig:
 
 def make_baseline() -> Baseline:
     return Baseline(
-        date="2026-10-29",
+        date="2026-11-01",
         vendors=[
             VendorState(
                 id="openai",
-                seen_directory_ids=["openai/gpt-6.1-terra"],
-                lines=[
-                    LineState(
-                        key="flagship",
-                        model="GPT-6.1 Terra",
-                        release_date="2026-10-26",
-                        url="https://openai.com/gpt-6-1",
-                        last_verified="2026-10-29",
-                        status="ok",
+                models=[
+                    ModelState(
+                        key="gpt-6-1-terra", name="GPT-6.1 Terra",
+                        date="2026-10-26", url=None, source="directory",
+                        status="confirmed", last_verified="2026-11-01",
                     ),
-                    LineState(
-                        key="sub",
-                        model="GPT-6.1 mini",
-                        release_date="2026-10-26",
-                        url="https://openai.com/gpt-6-1-mini",
-                        last_verified="2026-10-29",
-                        status="ok",
-                    ),
-                ],
-            ),
-            VendorState(
-                id="anthropic",
-                lines=[
-                    LineState(
-                        key="flagship",
-                        model="Claude Opus 5.5",
-                        release_date="2026-09-15",
-                        url="https://anthropic.com/opus-5-5",
-                        last_verified="2026-10-29",
-                        status="ok",
-                    ),
-                    LineState(
-                        key="sub",
-                        model="Claude Sonnet 5.5",
-                        release_date="2026-09-29",
-                        url="https://anthropic.com/sonnet-5-5",
-                        last_verified="2026-10-29",
-                        status="ok",
+                    ModelState(
+                        key="gpt-6-1-mini", name="GPT-6.1 mini",
+                        status="unconfirmed", reason="LLM 未配置（暂态，次日重试）",
                     ),
                 ],
             ),
             VendorState(
                 id="zhipu",
-                lines=[
-                    LineState(
-                        key="flagship",
-                        model="GLM-5.3",
-                        release_date="2026-09-24",
-                        url="https://z.ai/glm-5-3",
-                        last_verified="2026-10-29",
-                        status="ok",
+                models=[
+                    ModelState(
+                        key="glm-5-3", name="GLM-5.3",
+                        date="2026-08-18", url="https://docs.z.ai/release-notes/glm-5-3",
+                        source="official", status="confirmed",
+                        last_verified="2026-11-01",
                     ),
-                    LineState(key="sub", status="pending", reason="裁决缺失", pending_days=2),
+                    ModelState(
+                        key="glm-5-3-flash", name="GLM-5.3 Flash",
+                        status="unconfirmed", reason="公告提取/校验失败（暂态，次日重试）",
+                    ),
                 ],
             ),
         ],
@@ -124,209 +89,136 @@ def make_baseline() -> Baseline:
 
 
 CORROBORATIONS = {
-    "GPT-6.1 Terra": "https://openrouter.ai/openai/gpt-6.1-terra",
-    "Claude Opus 5.5": "https://openrouter.ai/anthropic/claude-opus-5.5",
-    "GLM-5.3": "https://openrouter.ai/z-ai/glm-5.3",
+    "gpt-6-1-terra": "https://openrouter.ai/openai/gpt-6.1-terra",
+    "glm-5-3": "https://openrouter.ai/z-ai/glm-5.3",
 }
 
 
-def make_rows() -> list[VendorRow]:
-    return rows_from_baseline(make_config(), make_baseline(), "2026-10-29", CORROBORATIONS)
+def make_rows() -> list[ModelRow]:
+    return rows_from_baseline(make_config(), make_baseline(), "2026-11-01",
+                              CORROBORATIONS)
 
 
 def test_rows_from_baseline_orders_and_filters():
-    # 配置厂商顺序、组内 flagship 在前；zhipu/sub pending 未确认被过滤；
-    # 佐证按 model 名查 corroborations，缺失为 None；天数 = today - release_date。
+    # 配置厂商/模型顺序；unconfirmed 不进表；目录来源 url=None、佐证回填 ⧉
     assert make_rows() == [
-        VendorRow(
-            vendor_name="OpenAI",
-            model="GPT-6.1 Terra",
-            url="https://openai.com/gpt-6-1",
-            corroborating="https://openrouter.ai/openai/gpt-6.1-terra",
-            release_date="2026-10-26",
-            days=3,
+        ModelRow(
+            vendor_name="OpenAI", key="gpt-6-1-terra", name="GPT-6.1 Terra",
+            url=None, corroborating="https://openrouter.ai/openai/gpt-6.1-terra",
+            release_date="2026-10-26", days=6, source="directory",
         ),
-        VendorRow(
-            vendor_name="OpenAI",
-            model="GPT-6.1 mini",
-            url="https://openai.com/gpt-6-1-mini",
-            corroborating=None,
-            release_date="2026-10-26",
-            days=3,
-        ),
-        VendorRow(
-            vendor_name="Anthropic",
-            model="Claude Opus 5.5",
-            url="https://anthropic.com/opus-5-5",
-            corroborating="https://openrouter.ai/anthropic/claude-opus-5.5",
-            release_date="2026-09-15",
-            days=44,
-        ),
-        VendorRow(
-            vendor_name="Anthropic",
-            model="Claude Sonnet 5.5",
-            url="https://anthropic.com/sonnet-5-5",
-            corroborating=None,
-            release_date="2026-09-29",
-            days=30,
-        ),
-        VendorRow(
-            vendor_name="智谱 AI",
-            model="GLM-5.3",
-            url="https://z.ai/glm-5-3",
+        ModelRow(
+            vendor_name="智谱 AI", key="glm-5-3", name="GLM-5.3",
+            url="https://docs.z.ai/release-notes/glm-5-3",
             corroborating="https://openrouter.ai/z-ai/glm-5.3",
-            release_date="2026-09-24",
-            days=35,
+            release_date="2026-08-18", days=75, source="official",
         ),
     ]
 
 
-EXPECTED_MARKDOWN = """# 各大厂商大模型新鲜度 2026-10-29
+EXPECTED_MARKDOWN = """# 各大厂商大模型新鲜度 2026-11-01
 
 ## 🥬 各大厂商大模型新鲜度
 
 | 厂商 | 模型 | 发布日 | 天数 |
 |---|---|---|---|
-| OpenAI | [GPT-6.1 Terra](https://openai.com/gpt-6-1) [⧉](https://openrouter.ai/openai/gpt-6.1-terra) | 2026-10-26 | 3 |
-|  | [GPT-6.1 mini](https://openai.com/gpt-6-1-mini) | 2026-10-26 | 3 |
-| Anthropic | [Claude Opus 5.5](https://anthropic.com/opus-5-5) [⧉](https://openrouter.ai/anthropic/claude-opus-5.5) | 2026-09-15 | 44 |
-|  | [Claude Sonnet 5.5](https://anthropic.com/sonnet-5-5) | 2026-09-29 | 30 |
-| 智谱 AI | [GLM-5.3](https://z.ai/glm-5-3) [⧉](https://openrouter.ai/z-ai/glm-5.3) | 2026-09-24 | 35 |
+| OpenAI | [GPT-6.1 Terra](https://openrouter.ai/openai/gpt-6.1-terra) | 2026-10-26† | 6 |
+| 智谱 AI | [GLM-5.3](https://docs.z.ai/release-notes/glm-5-3) [⧉](https://openrouter.ai/z-ai/glm-5.3) | 2026-08-18 | 75 |
 
-> 模型名链接 = 官方公告/产品页（进表硬条件，域名经白名单校验）；`⧉` = 第三方目录佐证（OpenRouter / models.dev 平台页）
+> 模型名链接 = 官方公告页（official，域名白名单校验）或 ⧉ 目录平台页（directory 来源）；`†` = 目录日期（models.dev 策展 / OpenRouter 上架），可能滞后官方公告数日
 
 ---
-基线快照：data/vendor-releases/2026-10-29.json · 口径：官方公告日（Asia/Shanghai）
+基线快照：data/vendor-models/2026-11-01.json · 口径：官方公告日（Asia/Shanghai）
 """
 
 
 def test_render_markdown_golden():
-    assert render_markdown("2026-10-29", make_rows()) == EXPECTED_MARKDOWN
+    # 目录来源：无官方 URL → 模型名链 ⧉ 平台页、日期带 †；官方来源：官方链接 + ⧉ 佐证
+    assert render_markdown("2026-11-01", make_rows()) == EXPECTED_MARKDOWN
 
 
-EXPECTED_JSON = """{
+def test_render_json_golden():
+    expected = """{
   "schema_version": 1,
-  "date": "2026-10-29",
+  "date": "2026-11-01",
   "models": [
     {
       "vendor": "OpenAI",
+      "key": "gpt-6-1-terra",
       "name": "GPT-6.1 Terra",
-      "url": "https://openai.com/gpt-6-1",
-      "release_date": "2026-10-26"
-    },
-    {
-      "vendor": "OpenAI",
-      "name": "GPT-6.1 mini",
-      "url": "https://openai.com/gpt-6-1-mini",
-      "release_date": "2026-10-26"
-    },
-    {
-      "vendor": "Anthropic",
-      "name": "Claude Opus 5.5",
-      "url": "https://anthropic.com/opus-5-5",
-      "release_date": "2026-09-15"
-    },
-    {
-      "vendor": "Anthropic",
-      "name": "Claude Sonnet 5.5",
-      "url": "https://anthropic.com/sonnet-5-5",
-      "release_date": "2026-09-29"
+      "url": null,
+      "release_date": "2026-10-26",
+      "source": "directory"
     },
     {
       "vendor": "智谱 AI",
+      "key": "glm-5-3",
       "name": "GLM-5.3",
-      "url": "https://z.ai/glm-5-3",
-      "release_date": "2026-09-24"
+      "url": "https://docs.z.ai/release-notes/glm-5-3",
+      "release_date": "2026-08-18",
+      "source": "official"
     }
   ]
 }
 """
-
-
-def test_render_json_golden():
-    assert render_json("2026-10-29", make_rows()) == EXPECTED_JSON
-
-
-def test_render_json_empty_rows():
-    assert render_json(
-        "2026-10-29", []
-    ) == '{\n  "schema_version": 1,\n  "date": "2026-10-29",\n  "models": []\n}\n'
+    assert render_json("2026-11-01", make_rows()) == expected
 
 
 # ---------- -pending 未决明细报告 ----------
 
 
-def test_pending_rows_from_baseline_collects_pending_lines_only():
-    # 只收 status='pending'：ok/stale-baseline 不进；按配置厂商/线顺序、取配置线名
+def test_pending_rows_from_baseline_collects_unconfirmed_models():
     assert pending_rows_from_baseline(make_config(), make_baseline()) == [
-        PendingRow(
-            vendor_name="智谱 AI",
-            line_name="GLM FlashX",
-            model=None,
-            pending_days=2,
-            reason="裁决缺失",
-        )
+        PendingRow("OpenAI", "GPT-6.1 mini", "LLM 未配置（暂态，次日重试）"),
+        PendingRow("智谱 AI", "GLM-5.3 Flash", "公告提取/校验失败（暂态，次日重试）"),
     ]
 
 
 def test_render_pending_markdown_lists_rows_and_failed_vendors():
     text = render_pending_markdown(
-        "2026-10-29",
-        [PendingRow("智谱 AI", "GLM FlashX", None, 2, "裁决缺失（提取/校验/确认失败）")],
-        failed_vendors=["openai"],
+        "2026-11-01",
+        [PendingRow("OpenAI", "GPT-6.1 mini", "LLM 未配置（暂态，次日重试）")],
+        failed_vendors=["qwen"],
     )
-    assert text.startswith("# 各大厂商大模型新鲜度 2026-10-29 未决明细")
-    assert (
-        "| 智谱 AI | GLM FlashX | — | 2 | 裁决缺失（提取/校验/确认失败） |" in text
-    )
-    assert "处理失败厂商（当日整体跳过）：openai" in text
-    assert "次日自动重试" in text  # 图例说明重试语义
+    assert text.startswith("# 各大厂商大模型新鲜度 2026-11-01 未决明细")
+    assert "| OpenAI | GPT-6.1 mini | LLM 未配置（暂态，次日重试） |" in text
+    assert "处理失败厂商（当日整体跳过）：qwen" in text
+    assert "次日自动重试" in text
 
 
 def test_render_pending_markdown_without_failed_vendors_omits_footer():
-    assert "处理失败厂商" not in render_pending_markdown("2026-10-29", [])
+    assert "处理失败厂商" not in render_pending_markdown("2026-11-01", [])
+
+
+# ---------- README 常驻区块 ----------
 
 
 def test_update_readme_freshness_appends_block(tmp_path: Path):
     readme = tmp_path / "README.md"
     readme.write_text("# free-model-spider\n\n## 日报索引\n\n已有内容\n", encoding="utf-8")
-    update_readme_freshness(readme, "2026-10-29", make_rows())
+    update_readme_freshness(readme, "2026-11-01", make_rows())
     text = readme.read_text(encoding="utf-8")
     start = text.index(FMS_VENDORS_START)
     end = text.index(FMS_VENDORS_END)
     assert start > text.index("已有内容"), "区块追加在原有内容之后"
     assert text.endswith(FMS_VENDORS_END + "\n")
-    block = text[start + len(FMS_VENDORS_START) : end]
+    block = text[start + len(FMS_VENDORS_START):end]
     assert block.startswith("\n### 厂商新鲜度榜\n\n| 厂商 | 模型 | 发布日 | 天数 |")
-    assert (
-        "| OpenAI | [GPT-6.1 Terra](https://openai.com/gpt-6-1) "
-        "[⧉](https://openrouter.ai/openai/gpt-6.1-terra) | 2026-10-26 | 3 |" in block
-    )
-    assert "|  | [GPT-6.1 mini](https://openai.com/gpt-6-1-mini) | 2026-10-26 | 3 |" in block
-    assert block.endswith("\n\n> 更新于 2026-10-29\n")
+    assert "2026-10-26† | 6 |" in block  # † 标注随表进 README
+    assert block.endswith("\n\n> 更新于 2026-11-01\n")
 
 
 def test_update_readme_freshness_rewrite_idempotent(tmp_path: Path):
     readme = tmp_path / "README.md"
     readme.write_text("# free-model-spider\n", encoding="utf-8")
-    update_readme_freshness(readme, "2026-10-29", make_rows())
+    update_readme_freshness(readme, "2026-11-01", make_rows())
     first = readme.read_text(encoding="utf-8")
 
-    # 次日只剩 OpenAI 两行：重写后旧厂商行（智谱 GLM-5.3 等）不得残留
-    slim = Baseline(date="2026-10-30", vendors=[make_baseline().vendors[0]])
-    slim_rows = rows_from_baseline(make_config(), slim, "2026-10-30", CORROBORATIONS)
-    update_readme_freshness(readme, "2026-10-30", slim_rows)
+    # 次日只剩一行：重写后旧行不得残留，逐字节幂等
+    slim_rows = make_rows()[:1]
+    update_readme_freshness(readme, "2026-11-02", slim_rows)
     second = readme.read_text(encoding="utf-8")
-    assert second.startswith("# free-model-spider\n")
-    assert second.count(FMS_VENDORS_START) == 1
-    assert second.count(FMS_VENDORS_END) == 1
     assert "GLM-5.3" not in second
-    assert "Claude Opus 5.5" not in second
-    # days 随 today 重算：2026-10-30 - 2026-10-26 = 4
-    assert "| OpenAI | [GPT-6.1 Terra](https://openai.com/gpt-6-1) [⧉](https://openrouter.ai/openai/gpt-6.1-terra) | 2026-10-26 | 4 |" in second
-    assert "> 更新于 2026-10-30" in second
-    assert "> 更新于 2026-10-29" not in second
-
-    # 同数据重跑：逐字节幂等
-    update_readme_freshness(readme, "2026-10-30", slim_rows)
+    assert "> 更新于 2026-11-02" in second
+    update_readme_freshness(readme, "2026-11-02", slim_rows)
     assert readme.read_text(encoding="utf-8") == second

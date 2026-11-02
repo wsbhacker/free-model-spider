@@ -1,29 +1,31 @@
-# 厂商大模型新鲜度统计配置（v2 spec：2026-10-30-vendor-official-crawl-redesign.md §3/§4）
-# 厂商顺序 = 报告展示顺序；v2 范围 8 家（御三家 + deepseek/kimi/glm/qwen/minimax；
-# 阶跃星辰用户 2026-10-30 决策移除）。
-# match/exclude 为公告条目与目录条目的门筛（regex，any-of，按线独立生效）；
-# 行归属歧义与文章页提取由 LLM 裁决；日期真值 = 官网公告文章页。
-# 自动化 5 家：anthropic/google/deepseek/zhipu/minimax（有公告源）；
-# 降级 3 家：openai/qwen/moonshot（官网无可爬公告源 → 目录审计 + override 兜底）。
-# meta/xai/mistral/cohere/bytedance/tencent/stepfun 暂移出（v1 配置见 git 历史 1bc99af）。
-stale_days: 45
+# 厂商新鲜度统计配置（v3 spec：2026-11-01-vendor-curated-models.md）
+# 人工只维护"有哪些模型"（models 的 key/name/match/exclude）——不含日期、不含 URL；
+# 发布日由管线提取：公告源文章页（官方）> models.dev 策展日 > OpenRouter 上架日（†标注）。
+# match 是窄正则（对公告标题/目录 id casefold 后 re.search），同厂商模型间必须互斥；
+# exclude 从命中中剔除子串（如衍生变体）。manual 为纠偏逃生口：配置即 confirmed，日常不用。
+# 新模型发现 = 目录新条目不匹配任何已维护模型 → webhook「发现未维护新模型」，人工决定是否加清单。
+# 降级 3 家（无公告源，走目录日期通道）：
+#   openai：2026-10-30 探测 changelog 新条目 JS 渲染、主站/帮助中心 403；
+#           2026-11-01 复测 openai.com/news 带浏览器 UA 仍 403、platform changelog 301
+#   qwen：qwenlm.github.io 已变跳转壳（迁 qwen.ai）、qwen.ai 全站 SPA（2026-11-01 复测 sitemap 302）
+#   moonshot：platform.kimi.com changelog 正文日期不落 HTML（JS 渲染）
 vendors:
   - id: openai
     name: OpenAI
     official_domains: [openai.com]
     directory_slugs: { openrouter: [openai, "~openai"], modelsdev: [openai] }
-    announcements:
-      # 2026-10-30 探测：changelog 静态 HTML 仅含 2025 旧条目（新条目 JS 渲染）、
-      # openai.com 主站 403、帮助中心 403 → 暂无可用公告源，走目录审计 + override 兜底
-      []
-    lines:
-      - key: flagship
-        name: GPT 主线
-        match: ['gpt-\d']
-        exclude: [mini, nano, image, video, audio, embed, transcribe, safeguard, guard]
-      - key: sub
-        name: GPT mini
-        match: ['gpt-\d[\d.]*-?mini']
+    announcements: []
+    models:
+      - key: gpt-6-1-terra-pro
+        name: GPT-6.1 Terra Pro
+        match: ['gpt[ -]?6\.1[ -]?terra[ -]?pro']
+      - key: gpt-6-1-terra
+        name: GPT-6.1 Terra
+        match: ['gpt[ -]?6\.1[ -]?terra']
+        exclude: [pro]
+      - key: gpt-6-1-sol-pro
+        name: GPT-6.1 Sol Pro
+        match: ['gpt[ -]?6\.1[ -]?sol[ -]?pro']
   - id: anthropic
     name: Anthropic
     official_domains: [anthropic.com]
@@ -31,15 +33,16 @@ vendors:
     announcements:
       - { name: 新闻 sitemap, url: "https://www.anthropic.com/sitemap.xml",
           mode: sitemap, include: "/news/" }
-    lines:
-      - key: flagship
-        name: Claude Opus
-        match: ['claude-[\d.]*-?opus']
-        exclude: [sonnet, haiku, image, video, audio, embed, guard, translate]
-      - key: sub
-        name: Claude Sonnet
-        match: ['claude-[\d.]*-?sonnet']
-        exclude: [haiku, image, video, audio, embed, guard, translate]
+    models:
+      - key: claude-opus-5-5
+        name: Claude Opus 5.5
+        match: ['opus[ -]?5\.5']
+      - key: claude-sonnet-5-5
+        name: Claude Sonnet 5.5
+        match: ['sonnet[ -]?5\.5']
+      - key: claude-haiku-5-5
+        name: Claude Haiku 5.5
+        match: ['haiku[ -]?5\.5']
   - id: google
     name: Google DeepMind
     official_domains: [blog.google, deepmind.google, ai.google.dev]
@@ -47,77 +50,78 @@ vendors:
     announcements:
       - { name: Gemini API 更新日志, url: "https://ai.google.dev/gemini-api/docs/changelog",
           mode: headings }
-    lines:
-      - key: flagship
-        name: Gemini 主线
-        match: ['gemini-\d']
-        exclude: [flash, image, video, audio, embedding, guard, nano, live]
-      - key: sub
-        name: Gemini Flash
-        match: ['gemini-\d[\d.]*-?flash']
+    models:
+      - key: gemini-4-argon
+        name: Gemini 4 Argon
+        match: ['gemini[ -]?4[ -]?argon']
+      - key: gemini-3-8-flash
+        name: Gemini 3.8 Flash
+        match: ['gemini[ -]?3\.8[ -]?flash']
   - id: deepseek
     name: DeepSeek
     official_domains: [deepseek.com, api-docs.deepseek.com]
     directory_slugs: { openrouter: [deepseek], modelsdev: [deepseek] }
     announcements:
       - { name: 更新日志, url: "https://api-docs.deepseek.com/updates", mode: headings }
-    lines:
-      - key: flagship
-        name: DeepSeek V/R 主线
-        match: ['deepseek-(v\d|r\d|chat|reasoner)']
-        exclude: [flash, coder, vision, image, video, audio, embed, guard, translate]
-      - key: sub
-        name: DeepSeek Flash
-        match: ['deepseek-(v[\d.]+|[\d.]+)-?flash']
-        exclude: [coder, vision, image, video, audio, embed, guard, translate]
+    models:
+      - key: deepseek-v4-1-flash
+        name: DeepSeek V4.1 Flash
+        match: ['deepseek[ -]?v4\.1[ -]?flash']
+      - key: deepseek-v4-pro-0813
+        name: DeepSeek V4 Pro (0813)
+        match: ['deepseek[ -]?v4[ -]?pro']
+      - key: deepseek-v4-flash-0731
+        name: DeepSeek V4 Flash (0731)
+        match: ['deepseek[ -]?v4[ -]?flash']
+        exclude: [vision]
   - id: qwen
     name: 阿里 Qwen
     official_domains: [qwen.ai, qwenlm.github.io]
     directory_slugs: { openrouter: [qwen], modelsdev: [alibaba] }
-    announcements:
-      # 2026-10-30 探测：qwenlm.github.io/blog 已改为跳转壳（迁 qwen.ai），
-      # qwen.ai 全站 SPA（robots/sitemap 均返回 HTML）→ 暂无可用公告源，走目录审计 + override 兜底
-      []
-    lines:
-      - key: flagship
-        name: Qwen Max/旗舰
-        match: ['qwen-(max|plus)', 'qwen\d+(\.\d+)?', 'qwq']
-        exclude: [turbo, flash, coder, vl, omni, mt, character, image, video, audio, embed, guard, translate]
-      - key: sub
-        name: Qwen Turbo/Flash
-        match: ['qwen[\d.]*-?(turbo|flash)']
-        exclude: [mt, coder, vl, omni, image, video, audio, embed, guard, translate]
+    announcements: []
+    models:
+      - key: qwen3-8-max-prime
+        name: Qwen3.8 Max Prime
+        match: ['qwen[ -]?3\.8[ -]?max[ -]?prime']
+      - key: qwen3-8-max
+        name: Qwen3.8 Max
+        match: ['qwen[ -]?3\.8[ -]?max']
+        exclude: [prime]
+      - key: qwen3-8-flash
+        name: Qwen3.8 Flash
+        match: ['qwen[ -]?3\.8[ -]?flash']
+        exclude: [omni]
   - id: moonshot
     name: 月之暗面
     official_domains: [moonshot.cn, moonshot.ai]
     directory_slugs: { openrouter: [moonshotai], modelsdev: [moonshotai] }
-    announcements:
-      # 2026-10-30 探测：changelog 正文日期不落 HTML（kimi/docs 迁 platform.kimi.com 后
-      # 为 JS 渲染）→ 暂无可用公告源，走目录审计 + override 兜底（v2 spec §6）
-      []
-    lines:
-      - key: flagship
-        name: Kimi K 主线
-        match: ['kimi-k\d']
-        exclude: [flash, turbo, highspeed, image, video, audio, embed, guard, translate, vl, vision]
-      - key: sub
-        name: Kimi K Flash/轻量
-        match: ['kimi-k\d[\d.]*-.*-?(flash|turbo|lite|mini|highspeed)']
-        exclude: [image, video, audio, embed, guard, translate, vl, vision]
+    announcements: []
+    models:
+      - key: kimi-k3-1-pro
+        name: Kimi K3.1 Pro
+        match: ['kimi[ -]?k3\.1[ -]?pro']
+      - key: kimi-k3
+        name: Kimi K3
+        match: ['kimi[ -]?k3']
+        exclude: ['k3.1', 'k3-1']
   - id: zhipu
     name: 智谱 AI
     official_domains: [z.ai, bigmodel.cn, zhipuai.cn]
     directory_slugs: { openrouter: [z-ai], modelsdev: [zai, zhipuai] }
     announcements:
       - { name: 发布说明, url: "https://docs.z.ai/release-notes/new-released", mode: headings }
-    lines:
-      - key: flagship
-        name: GLM 主线
-        match: ['glm-\d']
-        exclude: [flash, air, embedding, voice, vision, guard]
-      - key: sub
-        name: GLM Flash
-        match: ['glm-\d[\d.]*-?(flash|flashx)']
+    models:
+      - key: glm-5-3
+        name: GLM-5.3
+        match: ['glm[ -]?5\.3']
+        exclude: [flash, flashx, prime, air]
+      - key: glm-5-3-prime
+        name: GLM-5.3 Prime
+        match: ['glm[ -]?5\.3[ -]?prime']
+      - key: glm-5-3-flash
+        name: GLM-5.3 Flash
+        match: ['glm[ -]?5\.3[ -]?flash']
+        exclude: [flashx]
   - id: minimax
     name: MiniMax
     official_domains: [minimax.io, minimaxi.com]
@@ -125,12 +129,11 @@ vendors:
     announcements:
       - { name: 新闻 sitemap, url: "https://minimax.io/sitemap.xml",
           mode: sitemap, include: "/(news|blog)/" }
-    lines:
-      - key: flagship
-        name: MiniMax M 主线
-        match: ['minimax-m\d']
-        exclude: [flash, image, video, audio, embed, guard, translate, speech, music, vl]
-      - key: sub
-        name: M Flash
-        match: ['minimax-m\d[\d.]*-?flash']
-        exclude: [image, video, audio, embed, guard, translate, speech, music, vl]
+    models:
+      - key: minimax-m3-1-flash
+        name: MiniMax M3.1 Flash
+        match: ['minimax[ -]?m3[.-]?1[ -]?flash', 'minimax-m31f']
+      - key: minimax-m3
+        name: MiniMax M3
+        match: ['minimax[ -]?m3']
+        exclude: ['m3.1', 'm3-1', m31]

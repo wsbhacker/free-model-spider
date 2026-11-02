@@ -2,10 +2,9 @@ import httpx
 import respx
 
 from free_model_spider.core import vendor_judge
-from free_model_spider.core.vendor_config import LineConfig, VendorConfig
+from free_model_spider.core.vendor_config import ModelConfig, VendorConfig
 from free_model_spider.core.vendor_judge import (
     SYSTEM_PROMPT,
-    classify_entry,
     extract_from_article,
     validate_judgment,
 )
@@ -16,12 +15,9 @@ VENDOR = VendorConfig(
     name="智谱 AI",
     official_domains=["z.ai", "chat.z.ai", "docs.z.ai", "bigmodel.cn"],
     directory_slugs={"openrouter": ["z-ai"], "modelsdev": ["zai"]},
-    lines=[
-        LineConfig(key="flagship", name="GLM 主线", match=[r"glm-\d"]),
-        LineConfig(key="sub", name="GLM Flash", match=[r"glm.*(flash|flashx)"]),
-    ],
+    models=[ModelConfig(key="glm-5-4", name="GLM-5.4", match=[r"glm[ -]?5\.4"])],
 )
-LINE = VENDOR.lines[0]
+MODEL_NAME = VENDOR.models[0].name
 ARTICLE_URL = "https://z.ai/blog/glm-5-4"
 
 GOOD_ARTICLE_JSON = (
@@ -188,18 +184,18 @@ def test_extract_from_article_returns_validated_judgment():
         )
     )
     llm = FakeLLM([GOOD_ARTICLE_JSON])
-    judgment = extract_from_article(llm, httpx.Client(), VENDOR, LINE, ARTICLE_URL)
+    judgment = extract_from_article(llm, httpx.Client(), VENDOR, MODEL_NAME, ARTICLE_URL)
     assert judgment is not None
     assert judgment.model == "GLM-5.4"
     assert judgment.release_date == "2026-10-20"
     assert judgment.source_urls == [ARTICLE_URL]  # 回填为被抓取的公告页
     assert llm.calls[0][0] is SYSTEM_PROMPT  # 共用 prompt 基座
     assert "2026-10-20" in llm.calls[0][1]  # 页面原文进了 user prompt
-    assert "GLM 主线" in llm.calls[0][1]  # 线上下文进了 user prompt
+    assert "目标模型：GLM-5.4" in llm.calls[0][1]  # 模型上下文进了 user prompt
 
 
 def test_extract_from_article_no_llm_returns_none():
-    assert extract_from_article(None, httpx.Client(), VENDOR, LINE, ARTICLE_URL) is None
+    assert extract_from_article(None, httpx.Client(), VENDOR, MODEL_NAME, ARTICLE_URL) is None
 
 
 def test_extract_from_article_fetch_failure_logs_and_returns_none(monkeypatch, capsys):
@@ -208,7 +204,7 @@ def test_extract_from_article_fetch_failure_logs_and_returns_none(monkeypatch, c
 
     monkeypatch.setattr(vendor_judge, "request_with_retries", boom)
     out = extract_from_article(FakeLLM([GOOD_ARTICLE_JSON]), httpx.Client(),
-                               VENDOR, LINE, ARTICLE_URL)
+                               VENDOR, MODEL_NAME, ARTICLE_URL)
     assert out is None
     assert "公告页抓取失败" in capsys.readouterr().out
 
@@ -219,7 +215,7 @@ def test_extract_from_article_truncates_body_to_limit():
     body = "GLM-5.4 于 2026-10-20 正式发布。" + "x" * 13000 + tail_marker
     respx.get(ARTICLE_URL).mock(return_value=httpx.Response(200, text=body))
     llm = FakeLLM([GOOD_ARTICLE_JSON])
-    out = extract_from_article(llm, httpx.Client(), VENDOR, LINE, ARTICLE_URL)
+    out = extract_from_article(llm, httpx.Client(), VENDOR, MODEL_NAME, ARTICLE_URL)
     assert out is not None
     user_prompt = llm.calls[0][1]
     assert "2026-10-20" in user_prompt
@@ -230,18 +226,18 @@ def test_extract_from_article_truncates_body_to_limit():
 def test_extract_from_article_two_bad_json_degrades_with_log(capsys):
     respx.get(ARTICLE_URL).mock(return_value=httpx.Response(200, text="内容"))
     llm = FakeLLM(["not json at all", '{"model": broken'])
-    out = extract_from_article(llm, httpx.Client(), VENDOR, LINE, ARTICLE_URL)
+    out = extract_from_article(llm, httpx.Client(), VENDOR, MODEL_NAME, ARTICLE_URL)
     assert out is None
     out_text = capsys.readouterr().out
     assert "两次均非 JSON" in out_text
-    assert "extract zai/flagship" in out_text
+    assert "extract zai/GLM-5.4" in out_text
 
 
 @respx.mock
 def test_extract_from_article_llm_error_logs_cause(capsys):
     respx.get(ARTICLE_URL).mock(return_value=httpx.Response(200, text="内容"))
     llm = FakeLLM([LLMError("所有模型均不可用：m/a:free(HTTPStatusError: 429)")])
-    out = extract_from_article(llm, httpx.Client(), VENDOR, LINE, ARTICLE_URL)
+    out = extract_from_article(llm, httpx.Client(), VENDOR, MODEL_NAME, ARTICLE_URL)
     assert out is None
     out_text = capsys.readouterr().out
     assert "LLM 调用失败" in out_text
@@ -256,7 +252,7 @@ def test_extract_from_article_missing_date_logs_reason(capsys):
         '{"model": "GLM-5.4", "release_date": null, "evidence": [], '
         '"reason": "页面原文未出现发布日期"}'
     ])
-    out = extract_from_article(llm, httpx.Client(), VENDOR, LINE, ARTICLE_URL)
+    out = extract_from_article(llm, httpx.Client(), VENDOR, MODEL_NAME, ARTICLE_URL)
     assert out is None
     out_text = capsys.readouterr().out
     assert "公告页未含模型/日期" in out_text
@@ -270,43 +266,7 @@ def test_extract_from_article_validation_failure_logs_detail(capsys):
         '{"model": "GLM-5.4", "release_date": "2026-10-20", '
         '"evidence": ["与日期无关的句子"], "reason": ""}'
     )
-    out = extract_from_article(FakeLLM([bad]), httpx.Client(), VENDOR, LINE, ARTICLE_URL)
+    out = extract_from_article(FakeLLM([bad]), httpx.Client(), VENDOR, MODEL_NAME, ARTICLE_URL)
     assert out is None
     assert "提取未过校验" in capsys.readouterr().out
 
-
-# ---------- classify_entry ----------
-
-
-def test_classify_entry_returns_category_and_reason():
-    llm = FakeLLM(replies=['{"category": "sub", "reason": "标题含 flash，属次旗舰线"}'])
-    assert classify_entry(llm, VENDOR, "GLM-5.4-Flash 发布") == (
-        "sub",
-        "标题含 flash，属次旗舰线",
-    )
-
-
-def test_classify_entry_parses_fenced_flagship():
-    llm = FakeLLM(replies=['```json\n{"category": "flagship", "reason": "主线新模型"}\n```'])
-    assert classify_entry(llm, VENDOR, "GLM-5.4 发布") == ("flagship", "主线新模型")
-
-
-def test_classify_entry_bad_json_twice_pending():
-    llm = FakeLLM(replies=["nope", "still nope"])
-    assert classify_entry(llm, VENDOR, "公司年度报告") == ("pending", "")
-    assert len(llm.calls) == 2
-
-
-def test_classify_entry_invalid_category_pending_with_log(capsys):
-    llm = FakeLLM(replies=['{"category": "mainline", "reason": "x"}'])
-    assert classify_entry(llm, VENDOR, "随便什么") == ("pending", "")
-    assert "非法类别" in capsys.readouterr().out
-
-
-def test_classify_entry_llm_error_pending():
-    llm = FakeLLM(replies=[LLMError("boom")])
-    assert classify_entry(llm, VENDOR, "随便什么") == ("pending", "")
-
-
-def test_classify_entry_no_llm_pending():
-    assert classify_entry(None, VENDOR, "随便什么") == ("pending", "")
