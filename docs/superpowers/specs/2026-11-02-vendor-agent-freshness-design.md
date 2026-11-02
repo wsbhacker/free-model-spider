@@ -9,15 +9,17 @@
 | 决策 | 结论 |
 |---|---|
 | 研究主体 | 不再由管线直连 LLM + 自建抓取，改为调用外部 agent，由其自主搜索并直接返回答案 |
-| 基线策略 | 一次性建立基线后冻结；此后每日只监测"有没有新模型"，有则加入并淘汰其上一代；"每天 +1"由发布日推算 |
+| 基线策略 | 一次性建立基线后冻结；此后每次运行只监测"有没有新模型"，有则加入并淘汰其上一代；"每天 +1"由发布日推算 |
 | SDK | 不用官方 `dify-client`（PyPI 0.1.10，2023-11-15，基于 requests，`base_url` 写死 `https://api.dify.ai/v1`，流式只返回原始 Response、不解析 SSE、不重试），改用项目已有 `httpx` + `httpx-sse`（0.4.3，零依赖） |
 | 淘汰呈现 | 被取代的旧一代从报告与 README 中移除，仅在状态文件留痕（`retired_on` / `superseded_by`） |
 | 基线来源 | `fms vendors --bootstrap` 让 agent 逐厂商生成草稿 JSON，用户过目修正后提交即为基线 |
 | `vendor_releases.yml` | 用户认为"人工维护模型清单"仍不合理；v4 把模型清单彻底移出配置，配置只剩厂商身份 |
+| 执行频率 | vendors workflow 每两天一次：cron `13 23 */2 * *`（每月单数日 23:13 UTC = 北京 07:13）。步进按月历取模，月末相邻两次可能只隔 1 天，用户接受；不做提问节流，"距今天数"随每次运行刷新 |
+| 发现新模型通知 | 有新模型入库时必须发 webhook（§10 `发现新模型`），与异常告警分开发送 |
 
 我的判断（用户把"两个服务都现成时选哪个"交给我定，可随时推翻）：
 
-- **选 Dify Agent 应用，而非 Hermes Agent**。理由：① 这是一个要无人值守跑数月的监测任务，Dify 的 Service API 多年稳定、每次调用是全新对话（无记忆漂移）、控制台可逐步回看 agent 思考，"服务形态"优势压过 Hermes 的 agent 能力优势；② Hermes 的浏览器级工具对 openai.com 403 / qwen.ai SPA 这类站点的召回优势，被本设计的"自愈提问窗口"（§7.1：永远问"最新已知发布日之后"，漏一天次日自动补上）大幅抵消；③ Hermes API server 共用整个个人 agent 网关的单一 Bearer key，泄漏半径大于 Dify 的单应用 key；④ Hermes 2026-09 两天 20 个 commit 几乎全是 fix，API 面仍在快速变化。
+- **选 Dify Agent 应用，而非 Hermes Agent**。理由：① 这是一个要无人值守跑数月的监测任务，Dify 的 Service API 多年稳定、每次调用是全新对话（无记忆漂移）、控制台可逐步回看 agent 思考，"服务形态"优势压过 Hermes 的 agent 能力优势；② Hermes 的浏览器级工具对 openai.com 403 / qwen.ai SPA 这类站点的召回优势，被本设计的"自愈提问窗口"（§7.1：永远问"最新已知发布日之后"，漏一次下次自动补上）大幅抵消；③ Hermes API server 共用整个个人 agent 网关的单一 Bearer key，泄漏半径大于 Dify 的单应用 key；④ Hermes 2026-09 两天 20 个 commit 几乎全是 fix，API 面仍在快速变化。
 - 代码里保留 `AgentBackend` 薄接口（§6.1），Dify 为首个实现；若 Dify 下线 legacy Agent 应用、或用户想要 Workflow 类型化输出、或想试 Hermes，各只需新增一个实现文件。
 
 ## 1. 背景与动机
@@ -35,10 +37,10 @@ v4 把"研究"整体外包给一个具备搜索 / 读网页工具的 Dify Agent 
 
 目标：
 
-1. 每日自动回答"各厂商自最新已知模型之后是否发布了新模型"，有则落库、出报告、告警。
+1. 定期（默认每两天）自动回答"各厂商自最新已知模型之后是否发布了新模型"，有则落库、出报告、告警。
 2. 人工配置只剩厂商身份（id / 名称 / 官方域名 / 别名），模型清单完全由状态文件承载、由 agent 增量维护。
 3. 状态文件只增不删：新增、淘汰均为追加字段，可审计。
-4. 延续 v3 铁律——**暂态故障绝不改写状态**：agent 调用失败 / 答案不可解析时，该厂商状态原样保留、告警、次日重试。
+4. 延续 v3 铁律——**暂态故障绝不改写状态**：agent 调用失败 / 答案不可解析时，该厂商状态原样保留、告警、下次运行重试。
 5. 一次性基线由 agent 生成草稿、用户审阅后冻结，用户不手写日期。
 
 非目标：
@@ -115,9 +117,9 @@ vendors:
 - `models` 只追加；淘汰 = 设置 `retired_on`（当日）与 `superseded_by`（新模型 key）。`retired_on is None` 的为"在表模型"，报告与 README 只渲染在表模型。
 - `key` 由管线从 `name` 生成：casefold → 非 `[a-z0-9]` 连续段替换为 `-` → 去首尾 `-`。同厂商内 key 已存在（无论在表或已淘汰）即视为已知模型，不重复入库。
 - `last_check.status ∈ {ok, transient}`，`detail` 为一句话原因；仅作审计，不参与渲染。结构性错误中止整个运行且不写当日基线（§8.1），因此不会出现在 `last_check` 里。
-- 厂商集合以 `vendors.yml` 为准：已从 yml 移除的厂商，其状态块随每日复制原样保留（只增不删），既不提问也不渲染；yml 中有而基线中无的厂商按 §8.1 第 3 步处理，不自动播种。
+- 厂商集合以 `vendors.yml` 为准：已从 yml 移除的厂商，其状态块随每次运行复制原样保留（只增不删），既不提问也不渲染；yml 中有而基线中无的厂商按 §8.1 第 3 步处理，不自动播种。
 - 加载器校验 `schema == 4`，否则抛错并指出文件路径与"请运行 `fms vendors --bootstrap`"。旧文件 `data/vendor-releases/2026-10-30.json`（无 schema 字段、全 null）随代码变更一并删除（§8.3）。
-- 每日运行沿用 v3 的"找 ≤ 当日最新基线 → 复制为当日文件"模式（`find_latest_baseline` / `save_baseline` 保留）。
+- 每次运行沿用 v3 的"找 ≤ 当日最新基线 → 复制为当日文件"模式（`find_latest_baseline` / `save_baseline` 保留）。
 
 ## 6. Agent 调用
 
@@ -152,7 +154,7 @@ class AgentStructuralError(RuntimeError): ...  # 401/403/400/404、环境变量�
   - `ping` 及其他：忽略。
   - 流结束却未收到 `message_end` → `AgentTransientError("流未正常结束")`。
 - HTTP 状态分类：401 / 403 / 400 / 404 → `AgentStructuralError`；429 / 5xx / 连接错误 / 超时 → `AgentTransientError`。
-- 重试：仅对"首字节到达前"的暂态失败（连接错误、429、5xx）重试 1 次，间隔 30 秒；流中途失败不重试（agent 一轮数分钟，由次日定时重试承担）。
+- 重试：仅对"首字节到达前"的暂态失败（连接错误、429、5xx）重试 1 次，间隔 30 秒；流中途失败不重试（agent 一轮数分钟，由下次定时运行承担）。
 
 ### 6.3 Dify 侧前置条件（用户负责，不在本仓库）
 
@@ -162,12 +164,12 @@ class AgentStructuralError(RuntimeError): ...  # 401/403/400/404、环境变量�
 
 ## 7. 提问契约与回答契约
 
-### 7.1 每日提问（每厂商一次）
+### 7.1 定期提问（每厂商一次）
 
 query 由管线模板生成，包含：厂商名与别名、官方域名列表、今日日期、在表模型清单（**每条给出 `key` / `name` / `release_date` 三项**，并说明 `supersedes` 须回填其中的 `key`）、提问窗口起点、输出 JSON 结构与硬性规则。
 
 - **窗口起点 = 在表模型中最大的 `release_date`**（同日发布也要能报出，因此是"≥ 起点且名称不在已知清单"）。该厂商无在表模型时（仅在 bootstrap 草稿为空时可能出现），起点 = 今日 − 180 天，并在当日 `-pending.md` 记一行"无在表模型，窗口回退 180 天"。
-- 这使提问天然自愈：某日 agent 漏报，次日窗口起点不变，仍会被问到。
+- 这使提问天然自愈：某次 agent 漏报，下次窗口起点不变，仍会被问到。
 - 硬性规则写进 query：只报通用大语言模型新版本/新系列（含推理、多模态文本模型），排除图像 / 视频 / 语音 / embedding 产品，排除已知清单中的模型、排除仅改名或仅降价；每个条目必须给官方公告 URL；无新模型返回 `{"new_models": []}`。
 
 回答契约（pydantic，`extra="ignore"`，agent 多给字段不致失败）：
@@ -205,7 +207,7 @@ query 要求返回该厂商**当前在售、最新一代**通用大语言模型�
 
 ## 8. 数据流
 
-### 8.1 每日 `fms vendors`
+### 8.1 定期 `fms vendors`
 
 1. 读取 `data/vendors.yml`；找 ≤ 今日最新基线（schema 4），不存在 → 结构性错误："请先运行 `fms vendors --bootstrap`"。
 2. `build_agent_backend`（缺变量 → 结构性错误）。
@@ -230,19 +232,19 @@ query 要求返回该厂商**当前在售、最新一代**通用大语言模型�
 
 ### 8.3 切换顺序
 
-1. 代码变更一次提交：新模块、`data/vendors.yml`、删除 `data/vendor_releases.yml` 与 `data/vendor-releases/2026-10-30.json`、workflow 变量、`pyproject` / `uv.lock`。此时每日 job 会因"无基线"结构性失败并告警——这是预期的，直到基线提交。
+1. 代码变更一次提交：新模块、`data/vendors.yml`、删除 `data/vendor_releases.yml` 与 `data/vendor-releases/2026-10-30.json`、workflow 变量、`pyproject` / `uv.lock`。此时定时 job 会因"无基线"结构性失败并告警——这是预期的，直到基线提交。
 2. 用户在 GitHub 配好 `DIFY_*` / `CF_ACCESS_*` 变量后，以 bootstrap 模式手动触发 workflow（§11），下载草稿产物；或在本地导出同名环境变量运行 `uv run fms vendors --bootstrap --no-commit`。
-3. 用户审阅草稿，提交为 `data/vendor-releases/<date>.json`，每日 job 自动恢复。
+3. 用户审阅草稿，提交为 `data/vendor-releases/<date>.json`，定时 job 自动恢复。
 
 ## 9. 报告与 README
 
 - 表格列：厂商 | 模型 | 发布日 | 距今（天） | 证据。去掉 v3 的 `†`（目录日期）与 `⧉`（平台页佐证）标记——v4 所有日期均来自官方公告 URL。
-- `-pending.md`：三节——"未建基线 / 处理异常的厂商"、"agent 暂态失败厂商（次日重试）"、"拒收条目（原因 + agent 原文摘录）"；无内容的节省略。
+- `-pending.md`：三节——"未建基线 / 处理异常的厂商"、"agent 暂态失败厂商（下次运行重试）"、"拒收条目（原因 + agent 原文摘录）"；无内容的节省略。
 - README 块渲染逻辑不变（`update_readme_freshness` 保留，列定义随上一条调整）。
 
 ## 10. 告警与日志
 
-- `发现新模型`：当日有接收条目时发送，列出"厂商 / 模型 / 发布日 / URL / 取代了谁"，附 Actions run 链接。
+- `发现新模型`：当次运行有接收条目时单独发送一条（与异常告警分开，用户明确要求有新模型必须有 webhook 通知），列出"厂商 / 模型 / 发布日 / URL / 取代了谁"，附 Actions run 链接。
 - `大模型新鲜度厂商异常`：当日有暂态厂商或拒收条目时发送（合并一条），列明细与 run 链接——沿用 v3 的汇总告警形态。
 - `大模型新鲜度日报失败`：结构性错误 / 未捕获异常（沿用）。
 - 日志：每次 `ask` 打印厂商、耗时、usage（有则）、`agent_thought` 摘要行、接收 / 拒收 / 忽略计数。
@@ -259,9 +261,9 @@ query 要求返回该厂商**当前在售、最新一代**通用大语言模型�
 | `CF_ACCESS_CLIENT_SECRET` | `secrets` | Cloudflare Access 服务令牌 Secret |
 | `ALERT_WEBHOOK_URL` / `ALERT_WEBHOOK_TOKEN` | `secrets` | 不变 |
 
-移除 `LLM_API_KEY / LLM_API_BASE / LLM_MODEL / LLM_FALLBACK_MODELS`。`daily.yml` 不动（`fms run` 仍用 LLM）。cron、concurrency group、checkout `ref` 均不变。
+移除 `LLM_API_KEY / LLM_API_BASE / LLM_MODEL / LLM_FALLBACK_MODELS`。`daily.yml` 不动（`fms run` 仍用 LLM）。cron 改为 `13 23 */2 * *`（每两天，见 §0），workflow `name` 改为 `vendor-freshness`；concurrency group、checkout `ref` 不变。
 
-`workflow_dispatch` 增加输入 `mode`（choice：`daily` 默认 / `bootstrap`）与可选 `vendor`（字符串，仅 bootstrap 用）。`mode=bootstrap` 时执行 `uv run fms vendors --bootstrap --no-commit [--vendor <vendor>]`，用 `actions/upload-artifact` 上传 `data/vendor-releases/` 为产物 `vendor-baseline-draft`，不提交；schedule 触发恒为 daily。这样用户无需在本地持有 Dify / CF 凭据即可生成草稿。
+`workflow_dispatch` 增加输入 `mode`（choice：`run` 默认 / `bootstrap`）与可选 `vendor`（字符串，仅 bootstrap 用）。`mode=bootstrap` 时执行 `uv run fms vendors --bootstrap --no-commit [--vendor <vendor>]`，用 `actions/upload-artifact` 上传 `data/vendor-releases/` 为产物 `vendor-baseline-draft`，不提交；schedule 触发恒为 run。这样用户无需在本地持有 Dify / CF 凭据即可生成草稿。
 
 `pyproject.toml` 新增 `httpx-sse>=0.4`，并更新 `uv.lock`（CI 用 `uv sync --frozen`）。`.env.example`（若存在）同步替换变量名。
 
@@ -306,10 +308,10 @@ query 要求返回该厂商**当前在售、最新一代**通用大语言模型�
 | 风险 | 应对 |
 |---|---|
 | agent 幻觉出不存在的模型 / 日期 | 官方域名证据 URL 强制；日期窗口校验；拒收条目进 pending 由人工复核 |
-| agent 漏报 | 窗口起点锚定最新已知发布日，次日自动补报；`发现新模型` 告警让漏报可被人工察觉 |
+| agent 漏报 | 窗口起点锚定最新已知发布日，下次运行自动补报；`发现新模型` 告警让漏报可被人工察觉 |
 | Dify legacy Agent 应用被下线 | `AgentBackend` 接口隔离；Workflow 实现是已知路径（§3） |
 | CF Access 令牌过期 / 轮换 | 401/403 结构性错误立刻红灯 + 告警，不会静默跑空 |
 | 单次 agent 耗时过长 | 分块 read 300 秒 + 整体 15 分钟上限；8 家串行最坏 2 小时，远低于 job 300 分钟 |
 | 首跑基线质量 | bootstrap 只出草稿，用户审阅后才成为基线 |
 | 同一模型因写法差异（"Claude Opus 5.5" vs "Claude 5.5 Opus"）被当作新模型重复入库 | query 附带已知清单并要求排除；`发现新模型` 告警使重复可被人工察觉，手工在状态 JSON 中标记 `retired_on` 即可修复；不做模糊匹配 |
-| 新增厂商后忘记 bootstrap | 每日 run 把该厂商记入 `failed`：进 pending、告警、退出码 1，直到用户执行 `--bootstrap --vendor` |
+| 新增厂商后忘记 bootstrap | 每次 run 把该厂商记入 `failed`：进 pending、告警、退出码 1，直到用户执行 `--bootstrap --vendor` |

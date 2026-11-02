@@ -1,8 +1,10 @@
-name: daily-vendor-freshness
+name: vendor-freshness
 
 on:
   schedule:
-    - cron: "13 23 * * *" # UTC + 8 = 北京 07:13；晚于 daily 10 分钟，正常情况下接在其后跑
+    # 每月单数日 23:13 UTC（北京 07:13）= 每两天一次；步进按月历取模，月末相邻两次可能只隔 1 天。
+    # 晚于 daily 10 分钟，正常情况下接在其后跑
+    - cron: "13 23 */2 * *"
   workflow_dispatch:
 
 permissions:
