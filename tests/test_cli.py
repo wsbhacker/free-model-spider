@@ -6,7 +6,7 @@ import httpx
 import pytest
 import respx
 
-from free_model_spider.cli import main
+from free_model_spider.cli import _git_commit, main
 from free_model_spider.core.intro import metadata_card
 from free_model_spider.sources.opencode import DOCS_URL
 
@@ -304,3 +304,59 @@ def test_run_success_sends_no_alert(tmp_path, monkeypatch):
     )
     assert main(["run", "--sources", "openrouter", "--date", "2026-09-30", "--no-commit"]) == 0
     assert alerts == []  # 全部成功：不发告警
+
+
+def test_git_commit_rebases_onto_advanced_remote_before_push(tmp_path, monkeypatch):
+    """共用 concurrency group 排队的 run：checkout 的还是触发时刻的旧 SHA，远端已被前一个
+    workflow 推进。_git_commit 须先 rebase 到远端最新再 push：远端线性、无 merge commit、
+    对方产物不丢。"""
+    origin = tmp_path / "origin.git"
+    subprocess.run(["git", "init", "--bare", "-b", "main", str(origin)],
+                   check=True, capture_output=True)
+    # 「另一个 workflow」：init → push
+    other = tmp_path / "other"
+    other.mkdir()
+    _git(other, "init", "-b", "main")
+    _git(other, "config", "user.name", "tester")
+    _git(other, "config", "user.email", "t@example.com")
+    (other / "README.md").write_text("# free-model-spider\n", encoding="utf-8")
+    _git(other, "add", "README.md")
+    _git(other, "commit", "-m", "init")
+    _git(other, "remote", "add", "origin", str(origin))
+    _git(other, "push", "-u", "origin", "main")
+
+    # 「本 workflow」：clone 时刻的快照（远端 tip = init）
+    runner = tmp_path / "runner"
+    subprocess.run(["git", "clone", str(origin), str(runner)], check=True, capture_output=True)
+    _git(runner, "config", "user.name", "bot")
+    _git(runner, "config", "user.email", "bot@example.com")
+
+    # 另一个 workflow 在本 run 排队期间先 push 了
+    (other / "reports").mkdir()
+    (other / "reports" / "daily.md").write_text("daily\n", encoding="utf-8")
+    _git(other, "add", "reports")
+    _git(other, "commit", "-m", "docs: daily")
+    _git(other, "push")
+
+    # 本 run 基于过期快照产出并提交
+    (runner / "data").mkdir()
+    (runner / "data" / "baseline.json").write_text("{}\n", encoding="utf-8")
+    (runner / "reports").mkdir()
+    (runner / "reports" / "vendors.md").write_text("vendors\n", encoding="utf-8")
+    (runner / "README.md").write_text("# free-model-spider\n\nvendors\n", encoding="utf-8")
+    monkeypatch.chdir(runner)
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    _git_commit("2026-11-02", Path("data"), Path("reports"), Path("README.md"),
+                message="docs: vendors")
+
+    subjects = subprocess.run(
+        ["git", "-C", str(origin), "log", "--format=%s", "main"],
+        check=True, capture_output=True, text=True,
+    ).stdout.splitlines()
+    assert subjects == ["docs: vendors", "docs: daily", "init"]
+    merges = subprocess.run(
+        ["git", "-C", str(origin), "rev-list", "--merges", "--count", "main"],
+        check=True, capture_output=True, text=True,
+    ).stdout.strip()
+    assert merges == "0"  # rebase 而非 merge：bot 不产生 merge commit
+    assert (runner / "reports" / "daily.md").exists()  # 对方产物经 rebase 进入本地

@@ -8,8 +8,10 @@ on:
 permissions:
   contents: write
 
+# 与 vendors.yml 同一个 group（仓库级生效）：两个 workflow 互斥串行，
+# 一个在跑时另一个进入 pending 等待，不会同时向 main 推送
 concurrency:
-  group: daily-free-model-report
+  group: fms-daily-reports
   cancel-in-progress: false
 
 jobs:
@@ -18,6 +20,10 @@ jobs:
     timeout-minutes: 300
     steps:
       - uses: actions/checkout@v7
+        with:
+          # 默认 checkout 的是触发时刻的 SHA；若排队等 vendors push 完再开跑，该 SHA 已过期。
+          # 显式给分支 ref，checkout 在真正执行时拉取分支最新
+          ref: ${{ github.ref }}
 
       - name: Install uv
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -44,16 +50,3 @@ jobs:
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           uv run fms run
-
-      - name: Run vendor freshness report
-        env:
-          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-          BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
-          LLM_API_BASE: ${{ vars.LLM_API_BASE }}
-          LLM_MODEL: ${{ vars.LLM_MODEL }}
-          LLM_FALLBACK_MODELS: ${{ vars.LLM_FALLBACK_MODELS }}
-          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
-          ALERT_WEBHOOK_TOKEN: ${{ secrets.ALERT_WEBHOOK_TOKEN }}
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          uv run fms vendors

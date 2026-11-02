@@ -74,6 +74,9 @@ def _git_commit(date: str, data_dir: Path, reports_dir: Path, readme: Path,
             return
         result.check_returncode()  # 真实 git 故障 → 非零退出，Actions 红灯（spec §11）
     if os.environ.get("GITHUB_ACTIONS") == "true":
+        # daily / vendors 两个 workflow 共用 concurrency group 串行；排队的那个 checkout 的
+        # 是触发时刻的 SHA，前一个已 push 则本地落后，先 rebase 到远端最新再 push
+        subprocess.run(["git", "pull", "--rebase", "--autostash"], check=True)
         subprocess.run(["git", "push"], check=True)
 
 

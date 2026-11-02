@@ -1,0 +1,51 @@
+name: daily-vendor-freshness
+
+on:
+  schedule:
+    - cron: "13 23 * * *" # UTC + 8 = 北京 07:13；晚于 daily 10 分钟，正常情况下接在其后跑
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# 与 daily.yml 同一个 group（仓库级生效）：两个 workflow 互斥串行，
+# 一个在跑时另一个进入 pending 等待，不会同时向 main 推送
+concurrency:
+  group: fms-daily-reports
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # 默认 checkout 的是触发时刻的 SHA；排队等 daily push 完再开跑时该 SHA 已过期。
+          # 显式给分支 ref，checkout 在真正执行时拉取分支最新
+          ref: ${{ github.ref }}
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Install dependencies
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          uv sync --frozen
+
+      - name: Configure git identity
+        run: |
+          git config user.name "free-model-bot"
+          git config user.email "free-model-bot@users.noreply.github.com"
+
+      - name: Run vendor freshness report
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_BASE: ${{ vars.LLM_API_BASE }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          LLM_FALLBACK_MODELS: ${{ vars.LLM_FALLBACK_MODELS }}
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+          ALERT_WEBHOOK_TOKEN: ${{ secrets.ALERT_WEBHOOK_TOKEN }}
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          uv run fms vendors
