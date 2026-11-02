@@ -19,7 +19,7 @@
 - 告警标题字面量：`发现新模型`、`大模型新鲜度厂商异常`、`大模型新鲜度日报失败`（spec §10）。
 - Dify 请求体：`{"inputs": {}, "query": ..., "response_mode": "streaming", "user": "fms-vendors", "auto_generate_name": false}`，不传 `conversation_id`（spec §6.2）。
 - 环境变量名：`DIFY_API_BASE`（含 `/v1`，末尾 `/` 容忍）、`DIFY_API_TOKEN`、`CF_ACCESS_CLIENT_ID`、`CF_ACCESS_CLIENT_SECRET`（两个 CF 变量要么都配要么都不配）。
-- 超时：`httpx.Timeout(connect=15, read=300, write=30, pool=15)`；整体墙钟 900 秒；首字节前暂态失败重试 1 次、间隔 30 秒；流中途失败不重试（spec §6.2）。
+- 超时：`httpx.Timeout(connect=15, read=300, write=30, pool=15)`；整体墙钟 3600 秒（60 分钟，spec §6.2）；首字节前暂态失败重试 1 次、间隔 30 秒；流中途失败不重试（spec §6.2）。
 - 仓库纪律：暂存按路径精确 `git add`，禁 `git add -A`；绝不 `git push`。
 - 每个 Task 结束跑 `uv run pytest -q` 全绿再 commit（Task 4 除外：其内部步骤自带目标测试，commit 前同样全量绿）。
 
@@ -64,9 +64,9 @@ class DifyAgentBackend:
 def build_agent_backend(client: httpx.Client) -> DifyAgentBackend:
     # 读环境变量；缺 DIFY_API_BASE/DIFY_API_TOKEN、或 CF 两变量只配一个 → AgentStructuralError
 ```
-常量：`DIFY_USER = "fms-vendors"`、`STREAM_TIMEOUT = httpx.Timeout(15, read=300, write=30, pool=15)`（按位参数顺序 connect/read/write/pool）、`WALL_CLOCK_LIMIT_SECONDS = 900.0`、`RETRY_DELAY_SECONDS = 30.0`。
+常量：`DIFY_USER = "fms-vendors"`、`STREAM_TIMEOUT = httpx.Timeout(15, read=300, write=30, pool=15)`（按位参数顺序 connect/read/write/pool）、`WALL_CLOCK_LIMIT_SECONDS = 3600.0`、`RETRY_DELAY_SECONDS = 30.0`。
 
-行为规格（测试即规格）：端点 `base_url.rstrip("/") + "/chat-messages"`；请求头 `Authorization: Bearer <token>`，CF 两值齐备时附 `CF-Access-Client-Id` / `CF-Access-Client-Secret`（`Accept`/`Cache-Control` 由 httpx-sse 自动加）；用 `httpx_sse.connect_sse(client, "POST", url, json=body, headers=..., timeout=STREAM_TIMEOUT)` 打开流。事件分发按 `sse.json()["event"]`：`agent_message`/`message` 追加 `answer`；`message_replace` 整体替换缓冲；`agent_thought` 打印一行 `[dify] thought#{position} tool={tool} input={str(tool_input)[:80]}`；`message_end` 记 usage 并结束；`error` 抛暂态（带 status/code/message）；`ping` 与未知事件、以及 `sse.json()` 解析失败的事件忽略。循环内 `clock()` 距起始超过 900 秒 → 暂态。流耗尽无 `message_end` → 暂态。HTTP 状态：401/403/400/404 → 结构性（信息含响应体前 200 字）；429/≥500/`httpx.TransportError`（含 `httpx_sse.SSEError`）→ 暂态；其中"首字节前"（`connect_sse` 打开或状态检查即失败）重试 1 次（`sleep(30)`），流中途失败不重试。
+行为规格（测试即规格）：端点 `base_url.rstrip("/") + "/chat-messages"`；请求头 `Authorization: Bearer <token>`，CF 两值齐备时附 `CF-Access-Client-Id` / `CF-Access-Client-Secret`（`Accept`/`Cache-Control` 由 httpx-sse 自动加）；用 `httpx_sse.connect_sse(client, "POST", url, json=body, headers=..., timeout=STREAM_TIMEOUT)` 打开流。事件分发按 `sse.json()["event"]`：`agent_message`/`message` 追加 `answer`；`message_replace` 整体替换缓冲；`agent_thought` 打印一行 `[dify] thought#{position} tool={tool} input={str(tool_input)[:80]}`；`message_end` 记 usage 并结束；`error` 抛暂态（带 status/code/message）；`ping` 与未知事件、以及 `sse.json()` 解析失败的事件忽略。循环内 `clock()` 距起始超过 3600 秒 → 暂态。流耗尽无 `message_end` → 暂态。HTTP 状态：401/403/400/404 → 结构性（信息含响应体前 200 字）；429/≥500/`httpx.TransportError`（含 `httpx_sse.SSEError`）→ 暂态；其中"首字节前"（`connect_sse` 打开或状态检查即失败）重试 1 次（`sleep(30)`），流中途失败不重试。
 
 - [ ] **Step 1: 加依赖**
 
@@ -98,7 +98,7 @@ ENV = {"DIFY_API_BASE": BASE, "DIFY_API_TOKEN": "app-token",
 7. `test_first_attempt_503_then_success`：`route.side_effect = [httpx.Response(503), httpx.Response(200, headers=SSE_HEADERS, content=_sse(message_end))]`，注入 `sleep=rec.append` → 成功且 `rec == [30.0]`、route 调用 2 次。
 8. `test_503_twice_raises_transient_no_more_retry`：两次 503 → 暂态、调用 2 次、sleep 一次。
 9. `test_midstream_failure_is_transient_without_retry`：`content=_first_event_then_raise()`（生成器产出首个 `agent_message` 事件后 `raise httpx.ReadTimeout("slow")`）→ 暂态、route 调用 1 次。
-10. `test_wall_clock_limit_exceeded`：`clock=lambda: [0, 0, 1000].pop(0)` 型递增桩（首事件后 elapsed=1000）→ 暂态（信息含"墙钟"）。
+10. `test_wall_clock_limit_exceeded`：`clock=lambda: [0, 0, 4000].pop(0)` 型递增桩（首事件后 elapsed=4000 > 3600）→ 暂态（信息含"墙钟"）。
 11. `test_non_json_data_lines_are_ignored`：体含 `b"data: [DONE]\n\n"` + 正常两事件 → 正常返回。
 12. `test_2xx_non_sse_body_is_transient_with_content_type`：`httpx.Response(200, text="<html>login</html>")` → `AgentTransientError` 且 str 含 `text/html`。
 13. `test_build_agent_backend_validations`：env 只给 BASE 不给 TOKEN → 结构性；CF 只配 ID 不配 SECRET → 结构性；全配 → 返回实例；BASE 带尾 `/` 时请求仍打 `/v1/chat-messages`（route 命中）。

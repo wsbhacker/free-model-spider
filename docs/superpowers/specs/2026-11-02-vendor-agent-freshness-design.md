@@ -144,7 +144,7 @@ class AgentStructuralError(RuntimeError): ...  # 401/403/400/404、环境变量�
 - 端点：`POST {DIFY_API_BASE}/chat-messages`。`DIFY_API_BASE` 为 Dify 控制台显示的 API 根（含 `/v1`，如 `https://dify.example.com/v1`），末尾 `/` 容忍。
 - 请求头：`Authorization: Bearer {DIFY_API_TOKEN}`；`CF_ACCESS_CLIENT_ID` 与 `CF_ACCESS_CLIENT_SECRET` 同时存在时附加 `CF-Access-Client-Id` / `CF-Access-Client-Secret`（只配一个视为结构性错误）；`Accept: text/event-stream`。
 - 请求体：`{"inputs": {}, "query": <query>, "response_mode": "streaming", "user": "fms-vendors", "auto_generate_name": false}`。不传 `conversation_id`：每次提问都是全新对话。
-- 超时：`httpx.Timeout(connect=15, read=300, write=30, pool=15)`（read 为分块间隔，对齐仓库已有 300 秒 LLM 超时）；另设整体墙钟上限 15 分钟，超出即中止流并抛 `AgentTransientError`。
+- 超时：`httpx.Timeout(connect=15, read=300, write=30, pool=15)`（read 为分块间隔，对齐仓库已有 300 秒 LLM 超时）；另设整体墙钟上限 60 分钟（用户 2026-11-02 拍板），超出即中止流并抛 `AgentTransientError`。
 - SSE 处理（`httpx_sse.connect_sse` + `iter_sse`），按 `data` JSON 的 `event` 字段分发：
   - `agent_message` / `message`：`answer` 追加到缓冲；
   - `message_replace`：缓冲整体替换为 `answer`；
@@ -311,7 +311,7 @@ query 要求返回该厂商**当前在售、最新一代**通用大语言模型�
 | agent 漏报 | 窗口起点锚定最新已知发布日，下次运行自动补报；`发现新模型` 告警让漏报可被人工察觉 |
 | Dify legacy Agent 应用被下线 | `AgentBackend` 接口隔离；Workflow 实现是已知路径（§3） |
 | CF Access 令牌过期 / 轮换 | 401/403 结构性错误立刻红灯 + 告警，不会静默跑空 |
-| 单次 agent 耗时过长 | 分块 read 300 秒 + 整体 15 分钟上限；8 家串行最坏 2 小时，远低于 job 300 分钟 |
+| 单次 agent 耗时过长 | 分块 read 300 秒 + 单次调用墙钟 60 分钟上限；极端串行由 job 300 分钟超时兜底（正常单家耗时数分钟） |
 | 首跑基线质量 | bootstrap 只出草稿，用户审阅后才成为基线 |
 | 同一模型因写法差异（"Claude Opus 5.5" vs "Claude 5.5 Opus"）被当作新模型重复入库 | query 附带已知清单并要求排除；`发现新模型` 告警使重复可被人工察觉，手工在状态 JSON 中标记 `retired_on` 即可修复；不做模糊匹配 |
 | 新增厂商后忘记 bootstrap | 每次 run 把该厂商记入 `failed`：进 pending、告警、退出码 1，直到用户执行 `--bootstrap --vendor` |
