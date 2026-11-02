@@ -8,6 +8,11 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
+from free_model_spider.core.agent_backend import (
+    AgentStructuralError,
+    AgentTransientError,
+    build_agent_backend,
+)
 from free_model_spider.core.alert import run_link, send_alert
 from free_model_spider.core.diff import DiffResult, diff_models, dump_diff_json
 from free_model_spider.core.intro import build_intro
@@ -18,30 +23,37 @@ from free_model_spider.core.snapshot import (
     save_snapshot,
     snapshot_path,
 )
-from free_model_spider.core.vendor_config import VendorConfig, load_config
-from free_model_spider.core.vendor_confirm import resolve_model
+from free_model_spider.core.vendor_agent import (
+    Accepted,
+    apply_accepted,
+    build_bootstrap_query,
+    build_daily_query,
+    parse_bootstrap_answer,
+    parse_daily_answer,
+    slugify_name,
+    validate_bootstrap,
+    validate_daily,
+)
+from free_model_spider.core.vendor_config import load_config
 from free_model_spider.core.vendor_report import (
-    pending_rows_from_baseline,
+    PendingLine,
+    RejectedLine,
     render_json,
     render_markdown,
     render_pending_markdown,
     rows_from_baseline,
     update_readme_freshness,
 )
-from free_model_spider.core.vendor_source import fetch_listings
-from free_model_spider.core.vendor_stats import (
-    DirectoryRecord,
+from free_model_spider.core.vendor_state import (
+    Baseline,
+    LastCheck,
     ModelState,
     VendorState,
     baseline_path,
-    collect_directory_entries,
-    discover_unmaintained,
-    empty_baseline,
     find_latest_baseline,
-    is_variant_record,
     load_baseline,
-    model_matches,
     save_baseline,
+    window_start,
 )
 from free_model_spider.llm.client import build_llm_client
 from free_model_spider.search import build_search_provider
@@ -49,11 +61,6 @@ from free_model_spider.sources import available_sources, create_source
 from free_model_spider.sources.base import sort_records
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
-# 官网抓取 UA：openai 等站点对非浏览器 UA 直接 403（2026-10-30 实测）
-BROWSER_UA = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
-)
 
 
 def _git_commit(date: str, data_dir: Path, reports_dir: Path, readme: Path,
@@ -80,161 +87,195 @@ def _git_commit(date: str, data_dir: Path, reports_dir: Path, readme: Path,
         subprocess.run(["git", "push"], check=True)
 
 
-def _corroboration_map(
-    vendor: VendorConfig, records: list[DirectoryRecord]
-) -> dict[str, str]:
-    """model.key -> ⧉ 平台页 URL：OpenRouter 家条目优先，无则 models.dev（非关键佐证）。"""
-    result: dict[str, str] = {}
-    for model in vendor.models:
-        matched = [r for r in records if model_matches(model, r.id.casefold())]
-        openrouter = next(
-            (r for r in matched
-             if r.origin == "openrouter" and not is_variant_record(r)), None)
-        if openrouter is not None:
-            result[model.key] = f"https://openrouter.ai/{openrouter.id}"
-            continue
-        modelsdev = next((r for r in matched if r.origin == "modelsdev"), None)
-        if modelsdev is not None:
-            provider, _, model_id = modelsdev.id.partition(":")
-            result[model.key] = f"https://models.dev/{provider}/{model_id}"
-    return result
-
-
 def run_vendors(args) -> int:
-    """fms vendors 编排 v3：人工圈定模型清单 + 全自动日期提取（spec 2026-11-01 §5）。
+    """fms vendors 编排 v4：Dify Agent 监测厂商新鲜度（spec 2026-11-02 §8）。
 
-    每厂商：公告列表抓取（失败=暂态）→ 逐未确认模型按通道优先级解析（confirmed
-    跳过、manual 恒生效）→ 目录未维护新模型发现告警 → 全量条目入 seen。
-    厂商循环内 try/except 单厂商隔离；顶层 try/except 兜底先告警再非零退出。
+    daily（默认）：逐厂商问询 Agent → 校验 → 接收入库 / 拒收进 pending → 报告 +
+    README + 当日基线 + 提交。暂态失败不改写模型状态（仅 last_check 记 transient，
+    下次运行重试）；结构性错误（无基线 / 缺配置 / 鉴权失败）中止整个运行且不写当日
+    基线，先告警再非零退出。yml 已移除厂商的状态块随基线复制保留，不提问不渲染。
+    bootstrap：Agent 逐厂商生成草稿基线，不写报告、不改 README、不提交。
     """
     date = args.date or datetime.now(SHANGHAI).strftime("%Y-%m-%d")
-    client = httpx.Client(timeout=60, follow_redirects=True,
-                          headers={"User-Agent": BROWSER_UA})
-    failed: list[str] = []
-    run_failures: list[str] = []  # 当次运行提取失败/公告源不可用明细（收尾统一告警）
+    client = httpx.Client(timeout=60, follow_redirects=True)
+    if args.vendor and not args.bootstrap:
+        print("vendors: --vendor 仅在与 --bootstrap 同用时有效")
+        return 1
+    failed: list[str] = []  # 未建基线 / 单厂商异常：退出码 1（spec §8.1 第 6 步）
     try:
         config = load_config(args.config)
+
+        if args.bootstrap:
+            # ---- bootstrap（spec §8.2）：整体草稿要求无任何基线；--vendor 只替换该厂商块 ----
+            if not args.vendor and any(
+                    (args.data_dir / "vendor-releases").glob("*.json")):
+                print("vendors: 已存在基线；重做单厂商用 --vendor <id>，"
+                      "整体重做请先手动删除 data/vendor-releases/ 下的基线文件")
+                return 1
+            targets = ([v for v in config.vendors if v.id == args.vendor]
+                       if args.vendor else list(config.vendors))
+            if args.vendor and not targets:
+                print(f"vendors: --vendor {args.vendor} 不在 {args.config} 中")
+                return 1
+            backend = build_agent_backend(client)
+            base = Baseline(date=date)
+            if args.vendor:
+                latest = find_latest_baseline(args.data_dir, date)
+                if latest is not None:
+                    base = load_baseline(latest)
+            base.date = date
+            transient_ids: list[str] = []
+            drafts: dict[str, VendorState] = {}
+            for vendor in targets:
+                try:
+                    query = build_bootstrap_query(
+                        vendor.name, vendor.aliases, vendor.official_domains, date)
+                    answer = parse_bootstrap_answer(backend.ask(query).text)
+                except AgentTransientError as exc:
+                    print(f"vendors: {vendor.id} bootstrap 暂态失败：{exc}"
+                          "（写入空 models 块，请重试）")
+                    drafts[vendor.id] = VendorState(
+                        id=vendor.id,
+                        last_check=LastCheck(date=date, status="transient",
+                                             detail=str(exc)))
+                    transient_ids.append(vendor.id)
+                    continue
+                if answer is None:
+                    detail = "agent 回答不可解析（暂态，请重试）"
+                    print(f"vendors: {vendor.id} bootstrap {detail}"
+                          "（写入空 models 块）")
+                    drafts[vendor.id] = VendorState(
+                        id=vendor.id,
+                        last_check=LastCheck(date=date, status="transient",
+                                             detail=detail))
+                    transient_ids.append(vendor.id)
+                    continue
+                accepted, rejected = validate_bootstrap(
+                    answer, vendor.official_domains, date)
+                # validate_bootstrap 不去重同批同 key、apply_accepted 无同 key 防护：
+                # 草稿构造处自行按 key 去重（保留首个，丢弃后续重复条目）
+                kept: list[Accepted] = []
+                seen_keys: set[str] = set()
+                for item in accepted:
+                    key = slugify_name(item.name)
+                    if key in seen_keys:
+                        print(f"vendors: {vendor.id} 丢弃重复条目 {item.name}"
+                              f"（key {key} 与本批已有条目相同）")
+                        continue
+                    seen_keys.add(key)
+                    kept.append(item)
+                models = [
+                    ModelState(key=slugify_name(item.name), name=item.name,
+                               release_date=item.release_date, url=item.url,
+                               added_on=date)
+                    for item in kept
+                ]
+                drafts[vendor.id] = VendorState(
+                    id=vendor.id, models=models,
+                    last_check=LastCheck(date=date, status="ok", detail="bootstrap"))
+                print(f"[vendors] bootstrap {vendor.id}: "
+                      f"接收 {len(kept)} / 拒收 {len(rejected)}")
+                for item in kept:
+                    print(f"  - {item.name} | {item.release_date} | {item.url}")
+                for item in rejected:
+                    print(f"  拒收 {item.name}：{item.reason}")
+                if not kept:
+                    print(f"vendors: 注意——{vendor.id} 引导回答为空清单，"
+                          "已写入空 models 块，请人工审阅补充")
+            base.vendors = [v for v in base.vendors if v.id not in drafts]
+            base.vendors.extend(drafts[vendor.id] for vendor in targets)
+            path = baseline_path(args.data_dir, date)
+            save_baseline(base, path)
+            print(f"vendors: bootstrap 草稿 -> {path}")
+            return 1 if transient_ids else 0
+
+        # ---- daily（spec §8.1）----
         latest = find_latest_baseline(args.data_dir, date)
-        first_run = latest is None
-        baseline = load_baseline(latest) if latest else empty_baseline(date, config)
+        if latest is None:
+            message = (f"{date} 无任何 schema 4 基线："
+                       "请先运行 fms vendors --bootstrap 生成基线草稿")
+            print(f"vendors: {message}")
+            send_alert(client, "大模型新鲜度日报失败", f"{message}\n{run_link()}")
+            return 1
+        backend = build_agent_backend(client)
+        baseline = load_baseline(latest)
         baseline.date = date
         states = {v.id: v for v in baseline.vendors}
+        run_failures: list[PendingLine] = []  # 暂态明细：状态原样，下次运行重试
+        pending_failed: list[PendingLine] = []  # 未建基线 / 单厂商异常明细
+        rejected_lines: list[RejectedLine] = []
+        new_model_lines: list[str] = []
         for vendor in config.vendors:
             state = states.get(vendor.id)
-            if state is None:  # 配置新增厂商：补全 unconfirmed 模型随当日基线落盘
-                state = VendorState(id=vendor.id)
-                state.models = [ModelState(key=m.key, name=m.name)
-                                for m in vendor.models]
-                states[vendor.id] = state
-                baseline.vendors.append(state)
+            if state is None:  # yml 有而基线无：不自动播种，人工 --bootstrap 补
+                reason = (f"未建基线，请运行 "
+                          f"fms vendors --bootstrap --vendor {vendor.id}")
+                failed.append(f"{vendor.id} {reason}")
+                pending_failed.append(PendingLine(vendor.name, reason))
+                print(f"vendors: {vendor.id} {reason}，跳过提问")
                 continue
-            model_states = {m.key: m for m in state.models}
-            for model in vendor.models:  # 新增模型补条目；展示名以 yml 为准即时生效
-                if model.key in model_states:
-                    model_states[model.key].name = model.name
-                else:
-                    state.models.append(ModelState(key=model.key, name=model.name))
-        records_by_vendor, dir_errors = collect_directory_entries(client, config)
-        for error in dir_errors:
-            print(f"vendors: 目录采集降级：{error}")
-        llm = build_llm_client(client)
-        if llm is None:
-            print("vendors: LLM_API_KEY 未配置，有公告源厂商的模型将保持未确认（次日重试）")
-        corroborations: dict[str, str] = {}
-
-        for vendor in config.vendors:
-            state = states[vendor.id]
-            records = records_by_vendor.get(vendor.id, [])
             try:
-                listings = None
-                if vendor.announcements:
-                    merged, list_errors = fetch_listings(client, vendor)
-                    for error in list_errors:
-                        print(f"vendors: {vendor.id} 公告列表抓取降级：{error}")
-                    listings = merged if merged else None  # 空=当日不可用（暂态）
-                    if listings is None:
-                        print(f"vendors: {vendor.id} 公告列表当日不可用，"
-                              f"未确认模型保持未确认次日重试")
-                else:
-                    print(f"vendors: {vendor.id} 无公告源：未确认模型走目录日期通道")
-                model_states = {m.key: m for m in state.models}
-                for model in vendor.models:
-                    if model.manual is not None:  # manual 纠偏恒生效（覆盖既有 confirmed）
-                        model_states[model.key] = resolve_model(
-                            vendor, model, listings, records, llm, client, date)
-                        continue
-                    current = model_states.get(model.key)
-                    if current is not None and current.status == "confirmed":
-                        current.last_verified = date  # 事实永固，仅记核实日
-                        continue
-                    new_state = resolve_model(
-                        vendor, model, listings, records, llm, client, date)
-                    print(f"vendors: {vendor.id}/{model.key} -> "
-                          f"{new_state.status}：{new_state.reason}")
-                    model_states[model.key] = new_state
-                    if (new_state.status == "unconfirmed"
-                            and "暂态" in new_state.reason):
-                        run_failures.append(
-                            f"{vendor.id}/{model.key} {new_state.reason}")
-                state.models = list(model_states.values())
-                corroborations.update(_corroboration_map(vendor, records))
-
-                unmaintained = discover_unmaintained(vendor, state, records)
-                if unmaintained and first_run:
-                    print(f"vendors: {vendor.id} 首跑播种：目录条目全部入 seen，"
-                          f"未维护条目 {len(unmaintained)} 个不告警")
-                elif unmaintained:
-                    print(f"vendors: {vendor.id} 发现未维护新模型 {len(unmaintained)} 个："
-                          f"{unmaintained[:3]}")
-                    link = run_link()
-                    tail = f"\n{link}" if link else ""
-                    send_alert(client, "发现未维护新模型",
-                               f"{date} {vendor.name} 目录出现不匹配任何已维护模型的新条目：\n"
-                               + "\n".join(f"- {item}" for item in unmaintained[:3])
-                               + "\n决定追踪就加入 data/vendor_releases.yml 的 models" + tail)
-                seen = {entry.casefold() for entry in state.seen_directory_ids}
-                for record in records:  # 全部当日条目入 seen（含命中模型的）
-                    folded = record.id.casefold()
-                    if folded not in seen:
-                        state.seen_directory_ids.append(folded)
-                        seen.add(folded)
-            except Exception as exc:  # 单厂商隔离：一家失败只损失该家，其余照常出报告
+                window_start_day = window_start(state, date)
+                query = build_daily_query(
+                    vendor.name, vendor.aliases, vendor.official_domains,
+                    date, window_start_day, state.active_models())
+                result = backend.ask(query)
+                answer = parse_daily_answer(result.text)
+                if answer is None:  # 结构不对整厂商记暂态（spec §7.1）
+                    detail = "agent 回答不可解析（暂态，下次运行重试）"
+                    state.last_check = LastCheck(date=date, status="transient",
+                                                 detail=detail)
+                    run_failures.append(PendingLine(vendor.name, detail))
+                    continue
+                accepted, rejected, ignored = validate_daily(
+                    answer, state, vendor.official_domains, window_start_day, date)
+                added = apply_accepted(state, accepted, date)
+                state.last_check = LastCheck(
+                    date=date, status="ok",
+                    detail=f"新增 {len(added)} 个" if added else "无新模型")
+                rejected_lines += [
+                    RejectedLine(vendor.name, item.name, item.reason, result.text)
+                    for item in rejected]
+                for item in accepted:
+                    line = (f"- {vendor.name} / {item.name} / "
+                            f"{item.release_date} / {item.url}")
+                    if item.supersedes_key:
+                        old = next((m for m in state.models
+                                    if m.key == item.supersedes_key), None)
+                        if old is not None:
+                            line += f"（取代 {old.name}）"
+                    new_model_lines.append(line)
+                print(f"[vendors] {vendor.id}: 接收 {len(accepted)} / 拒收 "
+                      f"{len(rejected)} / 忽略 {len(ignored)}"
+                      f"（窗口 {window_start_day}）")
+            except AgentStructuralError:
+                # 鉴权/配置类失败所有厂商必然同样命中：中止整个运行，不写基线不提交
+                raise
+            except AgentTransientError as exc:
+                state.last_check = LastCheck(date=date, status="transient",
+                                             detail=str(exc))
+                run_failures.append(
+                    PendingLine(vendor.name, f"{exc}（暂态，下次运行重试）"))
+                continue
+            except Exception as exc:  # 单厂商隔离：一家失败只损失该家（沿用 v3）
                 failed.append(vendor.id)
+                pending_failed.append(PendingLine(vendor.name, repr(exc)[:200]))
                 print(f"vendors: {vendor.id} 处理失败，跳过该厂商：{exc!r}")
                 continue
 
-        rows = rows_from_baseline(config, baseline, date, corroborations)
-        confirmed = sum(1 for v in baseline.vendors for m in v.models
-                        if m.status == "confirmed")
-        unconfirmed = sum(1 for v in baseline.vendors for m in v.models
-                          if m.status == "unconfirmed")
-        summary = f"模型状态汇总：confirmed={confirmed} unconfirmed={unconfirmed}"
-        print(f"vendors: {summary}，进表 {len(rows)} 行")
-        if not rows:
-            print("vendors: 报告为空：没有任何已确认模型，检查上方各模型未确认原因")
-        if run_failures or failed:
-            # 当日异常摘要告警：提取失败/公告源不可用/单厂商异常（静默缺口，spec §7）
-            content_lines = [f"{date} 厂商新鲜度当日异常："]
-            if run_failures:
-                content_lines.append("暂态失败（详见 Actions 日志，次日自动重试）：")
-                content_lines += [f"- {item}" for item in run_failures]
-            if failed:
-                content_lines.append(f"厂商处理失败（当日整体跳过）：{'、'.join(failed)}")
-            content_lines.append(summary)
-            link = run_link()
-            if link:
-                content_lines.append(link)
-            send_alert(client, "大模型新鲜度厂商异常", "\n".join(content_lines))
+        rows = rows_from_baseline(config, baseline, date)
         args.reports_dir.mkdir(parents=True, exist_ok=True)
         report = args.reports_dir / f"各大厂商大模型新鲜度-{date}.md"
         report.write_text(render_markdown(date, rows), encoding="utf-8")
-        report.with_suffix(".json").write_text(render_json(date, rows), encoding="utf-8")
-        pending_rows = pending_rows_from_baseline(config, baseline)
-        if pending_rows or failed:
-            # 有错才有：未确认模型明细（-pending 后缀），随 reports 目录一并提交
-            pending_report = args.reports_dir / f"各大厂商大模型新鲜度-{date}-pending.md"
+        report.with_suffix(".json").write_text(render_json(date, rows),
+                                               encoding="utf-8")
+        if pending_failed or run_failures or rejected_lines:
+            pending_report = (args.reports_dir /
+                              f"各大厂商大模型新鲜度-{date}-pending.md")
             pending_report.write_text(
-                render_pending_markdown(date, pending_rows, failed), encoding="utf-8")
+                render_pending_markdown(date, pending_failed, run_failures,
+                                        rejected_lines),
+                encoding="utf-8")
             print(f"vendors: 未决明细 -> {pending_report}")
         update_readme_freshness(args.readme, date, rows)
         save_baseline(baseline, baseline_path(args.data_dir, date))
@@ -242,13 +283,29 @@ def run_vendors(args) -> int:
         if not args.no_commit:
             _git_commit(date, args.data_dir, args.reports_dir, args.readme,
                         message=f"docs: 大模型新鲜度日报 {date} [skip ci]")
-    except Exception as exc:  # 顶层兜底：日报失败必须先告警再非零退出（v1 spec §10.1）
+        if new_model_lines:
+            content = "\n".join([f"{date} 发现新模型：", *new_model_lines])
+            link = run_link()
+            if link:
+                content += f"\n{link}"
+            send_alert(client, "发现新模型", content)
+        if pending_failed or run_failures or rejected_lines:
+            content_lines = [f"{date} 厂商新鲜度当日异常："]
+            content_lines += [f"- 处理异常：{item}" for item in failed]
+            content_lines += [f"- 暂态失败：{line.vendor_name} {line.reason}"
+                              for line in run_failures]
+            content_lines += [f"- 拒收：{line.vendor_name} / {line.name}："
+                              f"{line.reason}" for line in rejected_lines]
+            link = run_link()
+            if link:
+                content_lines.append(link)
+            send_alert(client, "大模型新鲜度厂商异常", "\n".join(content_lines))
+    except Exception as exc:  # 顶层兜底：结构性/未捕获异常先告警再非零退出（spec §8.1 第 6 步）
         print(f"vendors: 处理失败：{exc!r}")
         send_alert(client, "大模型新鲜度日报失败",
                    f"{date} 大模型新鲜度日报失败：{exc!r}\n{run_link()}")
         return 1
     if failed:
-        # 单厂商失败不阻断整体产物；非零退出让 Actions 红灯可见（模式对齐 fms run）
         print(f"失败厂商：{'、'.join(failed)}")
         return 1
     return 0
@@ -268,8 +325,13 @@ def main(argv: list[str] | None = None) -> int:
     vendors.add_argument("--data-dir", type=Path, default=Path("data"))
     vendors.add_argument("--reports-dir", type=Path, default=Path("reports"))
     vendors.add_argument("--readme", type=Path, default=Path("README.md"))
-    vendors.add_argument("--config", type=Path, default=Path("data/vendor_releases.yml"))
     vendors.add_argument("--no-commit", action="store_true")
+    vendors.add_argument("--config", type=Path, default=Path("data/vendors.yml"),
+                         help="厂商身份配置（v4：仅 id/name/官方域名/别名）")
+    vendors.add_argument("--bootstrap", action="store_true",
+                         help="让 Agent 逐厂商生成基线草稿（不写报告、不提交）")
+    vendors.add_argument("--vendor", default=None,
+                         help="仅与 --bootstrap 同用：只引导/替换该厂商 id")
     args = parser.parse_args(argv)
 
     if args.command == "vendors":

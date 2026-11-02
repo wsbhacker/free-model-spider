@@ -1,20 +1,21 @@
-"""fms vendors v3 编排测试：人工圈定清单 + 通道优先级 + 发现告警 + 永固幂等。
+"""fms vendors v4 编排测试：Dify Agent 问询 → 校验入库 → 报告/基线/提交 + bootstrap。
 
-stub LLM + respx 公告列表页/文章页/目录 API；zai（有公告源 headings 模式）+
-openai（无公告源，目录日期通道）复刻真实形态（v3 spec §4/§5）。
+假 backend 按厂商显示名子串匹配回答；不触网（send_alert/build_agent_backend 均打桩）。
+覆盖 spec §13 的 12 个集成用例。
 """
 
 import json
 import subprocess
-from datetime import datetime, timezone
 from pathlib import Path
 
-import httpx
-import respx
-
 from free_model_spider.cli import main
+from free_model_spider.core.agent_backend import (
+    AgentAnswer,
+    AgentStructuralError,
+    AgentTransientError,
+)
 from free_model_spider.core.vendor_report import FMS_VENDORS_START
-from free_model_spider.core.vendor_stats import (
+from free_model_spider.core.vendor_state import (
     Baseline,
     ModelState,
     VendorState,
@@ -23,127 +24,101 @@ from free_model_spider.core.vendor_stats import (
     save_baseline,
 )
 
-OPENROUTER_URL = "https://openrouter.ai/api/v1/models"
-MODELS_DEV_URL = "https://models.dev/api.json"
-UPDATES_URL = "https://docs.z.ai/release-notes/new-released"
+DATE = "2026-11-02"
+BASELINE_DATE = "2026-11-01"
+REPORT_MD = f"reports/各大厂商大模型新鲜度-{DATE}.md"
+PENDING_MD = f"reports/各大厂商大模型新鲜度-{DATE}-pending.md"
 
-CONFIG_YAML = f"""\
+VENDORS_YAML = """\
 vendors:
-  - id: zai
-    name: 智谱 AI
-    official_domains: [z.ai]
-    directory_slugs: {{ openrouter: [z-ai], modelsdev: [zai] }}
-    announcements:
-      - {{ name: 发布说明, url: "{UPDATES_URL}", mode: headings }}
-    models:
-      - key: glm-5-3
-        name: GLM-5.3
-        match: ['glm[ -]?5\\.3']
-        exclude: [flash, flashx, prime, air]
-      - key: glm-5-3-flash
-        name: GLM-5.3-Flash
-        match: ['glm[ -]?5\\.3[ -]?flash']
-  - id: openai
-    name: OpenAI
-    official_domains: [openai.com]
-    directory_slugs: {{ openrouter: [openai] }}
-    # 无公告源：目录日期通道（v3 spec §4 通道 2/3）
-    models:
-      - key: gpt-6-1-terra
-        name: GPT-6.1 Terra
-        match: ['gpt[ -]?6\\.1[ -]?terra']
-        exclude: [pro]
+  - id: anthropic
+    name: Anthropic
+    official_domains: [anthropic.com]
+    aliases: [Claude]
+  - id: moonshot
+    name: 月之暗面
+    official_domains: [moonshot.cn, moonshot.ai, kimi.com]
+    aliases: [Moonshot AI, Kimi]
 """
 
-MANUAL_CONFIG_YAML = CONFIG_YAML.replace(
-    """      - key: glm-5-3-flash
-        name: GLM-5.3-Flash
-        match: ['glm[ -]?5\\.3[ -]?flash']""",
-    """      - key: glm-5-3-flash
-        name: GLM-5.3-Flash
-        match: ['glm[ -]?5\\.3[ -]?flash']
-        manual: { date: "2026-08-26", url: "https://z.ai/glm-5-3-flash" }""",
-)
+OPUS_6 = {
+    "name": "Claude Opus 6",
+    "release_date": "2026-11-01",
+    "url": "https://www.anthropic.com/news/claude-opus-6",
+    "supersedes": "claude-opus-5-5",
+}
+FAKE_9 = {
+    "name": "Claude Fake 9",
+    "release_date": "2026-11-01",
+    "url": "https://evil.example.com/x",
+}
+EMPTY_DAILY = '{"new_models": []}'
 
-UPDATES_HTML = """<html><body>
-<h1>Release Notes</h1>
-<h2>Date: 2026-08-18</h2>
-<h3>GLM-5.3 Release</h3><p>flagship</p>
-<h2>Date: 2026-08-26</h2>
-<h3>GLM-5.3-Flash Release</h3><p>flash</p>
-</body></html>"""
-
-GLM_JSON = (
-    '{"model": "GLM-5.3", "release_date": "2026-08-18", '
-    '"evidence": ["GLM-5.3 于 2026-08-18 正式发布"], "reason": ""}'
-)
-FLASH_JSON = (
-    '{"model": "GLM-5.3-Flash", "release_date": "2026-08-26", '
-    '"evidence": ["GLM-5.3-Flash 于 2026-08-26 正式发布"], "reason": ""}'
-)
-INSUFFICIENT_JSON = (
-    '{"model": null, "release_date": null, "evidence": [], '
-    '"reason": "页面原文未出现发布日期"}'
-)
-
-REPORT_MD = "reports/各大厂商大模型新鲜度-2026-10-29.md"
-PENDING_MD = "reports/各大厂商大模型新鲜度-2026-10-29-pending.md"
+BOOTSTRAP_ANTHROPIC = json.dumps({"models": [dict(OPUS_6, supersedes=None)]},
+                                 ensure_ascii=False)
+BOOTSTRAP_MOONSHOT = json.dumps(
+    {"models": [{"name": "Kimi K3", "release_date": "2026-06-01",
+                 "url": "https://www.moonshot.ai/news/kimi-k3"}]},
+    ensure_ascii=False)
 
 
-def _ts(day: str) -> int:
-    return int(datetime.fromisoformat(day + "T00:00:00+00:00").timestamp())
+def _daily_answer(*models: dict) -> str:
+    return json.dumps({"new_models": list(models)}, ensure_ascii=False)
 
 
-def _dir_payload(with_glm6: bool = False) -> dict:
-    ids = [
-        ("z-ai/glm-5.3", _ts("2026-08-18")),
-        ("z-ai/glm-5.3-flash", _ts("2026-08-26")),
-        ("z-ai/glm-4", _ts("2025-01-01")),  # 未维护条目：首跑播种不告警
-        ("openai/gpt-6.1-terra", _ts("2026-10-26")),
-        ("openai/gpt-6.1-terra-pro", _ts("2026-10-26")),  # terra 的 exclude=pro 挡
-    ]
-    if with_glm6:
-        ids.append(("z-ai/glm-6", _ts("2026-10-28")))  # 未维护新模型：发现告警
-    return {"data": [{"id": i, "created": c} for i, c in ids]}
+def _baseline() -> Baseline:
+    """既有基线：anthropic 一个 active 模型 claude-opus-5-5（2026-08-14）；
+    moonshot 一个 active 模型 kimi-k3（yml 两家都在基线中，日常运行才不会
+    触发用例④的「未建基线」路径；用例④自行覆写为只含 anthropic）。"""
+    return Baseline(
+        date=BASELINE_DATE,
+        vendors=[
+            VendorState(
+                id="anthropic",
+                models=[
+                    ModelState(
+                        key="claude-opus-5-5", name="Claude Opus 5.5",
+                        release_date="2026-08-14",
+                        url="https://www.anthropic.com/news/claude-opus-5-5",
+                        added_on="2026-08-14",
+                    ),
+                ],
+            ),
+            VendorState(
+                id="moonshot",
+                models=[
+                    ModelState(
+                        key="kimi-k3", name="Kimi K3",
+                        release_date="2026-06-01",
+                        url="https://www.moonshot.ai/news/kimi-k3",
+                        added_on="2026-06-01",
+                    ),
+                ],
+            ),
+        ],
+    )
 
 
-MODELS_DEV_PAYLOAD = {"zai": {"models": {"glm-5.3": {"release_date": "2026-08-18"}}}}
+class FakeBackend:
+    """按厂商显示名子串匹配回答：key = 厂商名子串 → 回答文本或异常实例。"""
+
+    def __init__(self, answers: dict[str, str | Exception]):
+        self.answers = answers
+        self.queries: list[str] = []
+
+    def ask(self, query: str) -> AgentAnswer:
+        self.queries.append(query)
+        for fragment, value in self.answers.items():
+            if fragment in query:
+                if isinstance(value, Exception):
+                    raise value
+                return AgentAnswer(text=value, usage=None)
+        raise AssertionError(f"未匹配到厂商的 query：{query[:80]}")
 
 
-def _init_repo(repo: Path):
-    repo.mkdir(parents=True, exist_ok=True)
-    for args in (["init"], ["config", "user.name", "tester"],
-                 ["config", "user.email", "t@example.com"]):
-        subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
-    (repo / "README.md").write_text("# free-model-spider\n", encoding="utf-8")
-    (repo / "data").mkdir()
-    (repo / "data" / "vendor_releases.yml").write_text(CONFIG_YAML, encoding="utf-8")
-    subprocess.run(["git", "-C", str(repo), "add", "."], check=True, capture_output=True)
-    subprocess.run(["git", "-C", str(repo), "commit", "-m", "init"],
-                   check=True, capture_output=True)
-
-
-def _clean_env(monkeypatch):
-    for var in ("GITHUB_ACTIONS", "LLM_API_KEY", "BRAVE_API_KEY", "ALERT_WEBHOOK_URL"):
-        monkeypatch.delenv(var, raising=False)
-
-
-class FakeLLM:
-    def __init__(self, replies: list[str]):
-        self.replies = list(replies)
-        self.calls: list[tuple[str, str]] = []
-
-    def complete(self, system, user):
-        self.calls.append((system, user))
-        return self.replies.pop(0)
-
-
-def _stub_llm(monkeypatch, llm):
-    monkeypatch.setattr("free_model_spider.cli.build_llm_client", lambda client: llm)
-
-
-def _stub_no_llm(monkeypatch):
-    monkeypatch.setattr("free_model_spider.cli.build_llm_client", lambda client: None)
+def _stub_backend(monkeypatch, fake: FakeBackend) -> None:
+    monkeypatch.setattr("free_model_spider.cli.build_agent_backend",
+                        lambda client: fake)
 
 
 def _capture_alerts(monkeypatch) -> list[tuple[str, str]]:
@@ -155,235 +130,296 @@ def _capture_alerts(monkeypatch) -> list[tuple[str, str]]:
     return alerts
 
 
-def _mock_offline(monkeypatch, with_glm6: bool = False):
-    """目录两源 + 公告列表页（headings 模式条目与文章页同 URL）的 respx 打桩。"""
-    monkeypatch.setattr("time.sleep", lambda _s: None)
-    respx.get(OPENROUTER_URL).mock(
-        return_value=httpx.Response(200, json=_dir_payload(with_glm6)))
-    respx.get(MODELS_DEV_URL).mock(
-        return_value=httpx.Response(200, json=MODELS_DEV_PAYLOAD))
-    respx.get(UPDATES_URL).mock(
-        return_value=httpx.Response(200, text=UPDATES_HTML))
+def _clean_env(monkeypatch) -> None:
+    for var in ("GITHUB_ACTIONS", "ALERT_WEBHOOK_URL", "DIFY_API_BASE",
+                "DIFY_API_TOKEN", "CF_ACCESS_CLIENT_ID",
+                "CF_ACCESS_CLIENT_SECRET"):
+        monkeypatch.delenv(var, raising=False)
 
 
-def _confirmed_baseline() -> Baseline:
-    """全部已确认的既有基线（次日幂等/发现告警场景的起点）。"""
-    return Baseline(
-        date="2026-10-28",
-        vendors=[
-            VendorState(
-                id="zai",
-                seen_directory_ids=[
-                    f.casefold() for f in
-                    ("z-ai/glm-5.3", "z-ai/glm-5.3-flash", "z-ai/glm-4",
-                     "openai/gpt-6.1-terra", "openai/gpt-6.1-terra-pro",
-                     "zai:glm-5.3")],
-                models=[
-                    ModelState(
-                        key="glm-5-3", name="GLM-5.3", date="2026-08-18",
-                        url=UPDATES_URL, source="official", status="confirmed",
-                        last_verified="2026-10-28",
-                    ),
-                    ModelState(
-                        key="glm-5-3-flash", name="GLM-5.3-Flash", date="2026-08-26",
-                        url=UPDATES_URL, source="official", status="confirmed",
-                        last_verified="2026-10-28",
-                    ),
-                ],
-            ),
-            VendorState(
-                id="openai",
-                seen_directory_ids=[
-                    f.casefold() for f in
-                    ("openai/gpt-6.1-terra", "openai/gpt-6.1-terra-pro")],
-                models=[ModelState(
-                    key="gpt-6-1-terra", name="GPT-6.1 Terra", date="2026-10-26",
-                    url=None, source="directory", status="confirmed",
-                    reason="目录日期（openrouter）", last_verified="2026-10-28",
-                )],
-            ),
-        ],
-    )
+def _init_repo(repo: Path) -> None:
+    repo.mkdir(parents=True, exist_ok=True)
+    for args in (["init"], ["config", "user.name", "tester"],
+                 ["config", "user.email", "t@example.com"]):
+        subprocess.run(["git", "-C", str(repo), *args], check=True,
+                       capture_output=True)
+    (repo / "README.md").write_text("# free-model-spider\n", encoding="utf-8")
+    (repo / "data").mkdir()
+    (repo / "data" / "vendors.yml").write_text(VENDORS_YAML, encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "."], check=True,
+                   capture_output=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-m", "init"],
+                   check=True, capture_output=True)
 
 
-# ---------- 场景①：首跑——公告源逐模型提取 + 无公告源厂商目录确认 + 静默播种 ----------
+def _git_log_count(repo: Path) -> int:
+    out = subprocess.run(["git", "-C", str(repo), "log", "--oneline"],
+                         check=True, capture_output=True, text=True).stdout
+    return len(out.splitlines())
 
 
-@respx.mock
-def test_first_run_confirms_via_both_channels(tmp_path, monkeypatch, capsys):
+def _setup(tmp_path, monkeypatch, *, baseline: bool = True) -> tuple[Path, FakeBackend]:
+    """公共起点：临时 git 仓库 + 假 backend + 告警捕获；可选预置既有基线。"""
     repo = tmp_path / "repo"
     _init_repo(repo)
     monkeypatch.chdir(repo)
     _clean_env(monkeypatch)
+    fake = FakeBackend({"Anthropic": EMPTY_DAILY, "月之暗面": EMPTY_DAILY})
+    _stub_backend(monkeypatch, fake)
+    if baseline:
+        save_baseline(_baseline(), baseline_path(Path("data"), BASELINE_DATE))
+    return repo, fake
+
+
+# ---------- ①：新模型入库、旧模型淘汰、发现新模型告警、日报提交 ----------
+
+
+def test_new_model_added_old_retired_alert_and_commit(tmp_path, monkeypatch, capsys):
+    repo, fake = _setup(tmp_path, monkeypatch)
+    fake.answers["Anthropic"] = _daily_answer(OPUS_6)
     alerts = _capture_alerts(monkeypatch)
-    llm = FakeLLM([GLM_JSON, FLASH_JSON])  # zai 两模型各一次提取
-    _stub_llm(monkeypatch, llm)
-    _mock_offline(monkeypatch)
 
-    assert main(["vendors", "--date", "2026-10-29", "--no-commit"]) == 0
+    assert main(["vendors", "--date", DATE]) == 0  # 默认提交
 
-    assert len(llm.calls) == 2  # openai 走目录通道 0 LLM；zai 每模型恰 1 次
-    saved = load_baseline(baseline_path(Path("data"), "2026-10-29"))
-    zai, openai = saved.vendors
-    assert [(m.date, m.source, m.status) for m in zai.models] == [
-        ("2026-08-18", "official", "confirmed"),
-        ("2026-08-26", "official", "confirmed"),
-    ]
-    assert (openai.models[0].date, openai.models[0].source,
-            openai.models[0].status) == ("2026-10-26", "directory", "confirmed")
-    # 首跑播种：全部目录条目入 seen（含未维护 glm-4），不发发现告警
-    assert "z-ai/glm-4" in zai.seen_directory_ids
-    assert alerts == []
-    assert "首跑播种" in capsys.readouterr().out
     md = Path(REPORT_MD).read_text("utf-8")
-    assert "[GLM-5.3](https://docs.z.ai/release-notes/new-released) [⧉](https://openrouter.ai/z-ai/glm-5.3)" in md
-    assert "[GPT-6.1 Terra](https://openrouter.ai/openai/gpt-6.1-terra)" in md
-    assert "2026-10-26†" in md  # 目录来源日期带 †
-    assert not Path(PENDING_MD).exists()  # 全确认 → 无未决明细
-
-
-# ---------- 场景②：confirmed 永固——次日重跑零 LLM、日期不动 ----------
-
-
-@respx.mock
-def test_confirmed_models_immutable_on_rerun(tmp_path, monkeypatch):
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    monkeypatch.chdir(repo)
-    _clean_env(monkeypatch)
-    _capture_alerts(monkeypatch)
-    save_baseline(_confirmed_baseline(), baseline_path(Path("data"), "2026-10-28"))
-    llm = FakeLLM([])  # 全 confirmed：不得有任何 LLM 调用
-    _stub_llm(monkeypatch, llm)
-    _mock_offline(monkeypatch)
-
-    assert main(["vendors", "--date", "2026-10-29", "--no-commit"]) == 0
-
-    assert llm.calls == []
-    saved = load_baseline(baseline_path(Path("data"), "2026-10-29"))
-    zai = saved.vendors[0]
-    assert [(m.date, m.last_verified) for m in zai.models] == [
-        ("2026-08-18", "2026-10-29"),  # 事实永固，仅核实日重臂
-        ("2026-08-26", "2026-10-29"),
-    ]
-
-
-# ---------- 场景③：提取失败暂态——不降级目录、进异常告警、-pending 明细 ----------
-
-
-@respx.mock
-def test_extraction_failure_transient_not_downgraded(tmp_path, monkeypatch, capsys):
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    monkeypatch.chdir(repo)
-    _clean_env(monkeypatch)
-    alerts = _capture_alerts(monkeypatch)
-    save_baseline(_confirmed_baseline(), baseline_path(Path("data"), "2026-10-28"))
-    # 撤掉 zai 两个模型的确认，强迫重提取；openai 保持 confirmed
-    baseline = load_baseline(baseline_path(Path("data"), "2026-10-28"))
-    baseline.vendors[0].models = [
-        ModelState(key="glm-5-3", name="GLM-5.3"),
-        ModelState(key="glm-5-3-flash", name="GLM-5.3-Flash"),
-    ]
-    save_baseline(baseline, baseline_path(Path("data"), "2026-10-28"))
-    llm = FakeLLM([INSUFFICIENT_JSON, INSUFFICIENT_JSON])
-    _stub_llm(monkeypatch, llm)
-    _mock_offline(monkeypatch)
-
-    assert main(["vendors", "--date", "2026-10-29", "--no-commit"]) == 0
-
-    saved = load_baseline(baseline_path(Path("data"), "2026-10-29"))
-    zai = saved.vendors[0]
-    # 暂态铁律：z-ai/glm-5.3 目录里明明有日期也不得降级
-    assert all(m.status == "unconfirmed" for m in zai.models)
-    assert all("暂态" in m.reason for m in zai.models)
-    # 异常摘要告警恰一次，两个模型都进正文
-    assert [t for t, _ in alerts] == ["大模型新鲜度厂商异常"]
-    content = alerts[0][1]
-    assert "zai/glm-5-3 " in content and "zai/glm-5-3-flash " in content
-    ptext = Path(PENDING_MD).read_text("utf-8")
-    assert "GLM-5.3" in ptext and "暂态" in ptext
-    # 主表只剩 openai（目录确认行）
-    md = Path(REPORT_MD).read_text("utf-8")
-    assert "GPT-6.1 Terra" in md and "GLM-5.3" not in md
-
-
-# ---------- 场景④：发现告警——未维护新目录条目 webhook + 入 seen ----------
-
-
-@respx.mock
-def test_unmaintained_new_directory_entry_alerts(tmp_path, monkeypatch, capsys):
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    monkeypatch.chdir(repo)
-    _clean_env(monkeypatch)
-    alerts = _capture_alerts(monkeypatch)
-    save_baseline(_confirmed_baseline(), baseline_path(Path("data"), "2026-10-28"))
-    _stub_no_llm(monkeypatch)  # 全 confirmed：无 LLM 也能跑完
-    _mock_offline(monkeypatch, with_glm6=True)  # 目录多出未维护的 glm-6
-
-    assert main(["vendors", "--date", "2026-10-29", "--no-commit"]) == 0
-
-    assert [t for t, _ in alerts] == ["发现未维护新模型"]
-    assert "z-ai/glm-6" in alerts[0][1]
-    assert "vendor_releases.yml" in alerts[0][1]  # 告警给出人工动作指引
-    saved = load_baseline(baseline_path(Path("data"), "2026-10-29"))
-    zai = saved.vendors[0]
-    assert "z-ai/glm-6" in zai.seen_directory_ids  # 告警后入 seen 不重复
-    # 同日重跑：已入 seen → 不再告警
-    alerts.clear()
-    assert main(["vendors", "--date", "2026-10-29", "--no-commit"]) == 0
-    assert alerts == []
-
-
-# ---------- 场景⑤：manual 纠偏——配置即 confirmed、不参与提取 ----------
-
-
-@respx.mock
-def test_manual_ref_confirms_directly(tmp_path, monkeypatch):
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    (repo / "data" / "vendor_releases.yml").write_text(MANUAL_CONFIG_YAML,
-                                                       encoding="utf-8")
-    monkeypatch.chdir(repo)
-    _clean_env(monkeypatch)
-    _capture_alerts(monkeypatch)
-    llm = FakeLLM([GLM_JSON])  # 只有 glm-5-3 走提取
-    _stub_llm(monkeypatch, llm)
-    _mock_offline(monkeypatch)
-
-    assert main(["vendors", "--date", "2026-10-29", "--no-commit"]) == 0
-
-    assert len(llm.calls) == 1
-    saved = load_baseline(baseline_path(Path("data"), "2026-10-29"))
-    flash = saved.vendors[0].models[1]
-    assert (flash.date, flash.url, flash.source, flash.status) == (
-        "2026-08-26", "https://z.ai/glm-5-3-flash", "manual", "confirmed")
-
-
-# ---------- 场景⑥：提交链路（data/vendor-models + reports + readme，[skip ci]） ----------
-
-
-@respx.mock
-def test_commit_message_and_tracked_paths(tmp_path, monkeypatch):
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    monkeypatch.chdir(repo)
-    _clean_env(monkeypatch)
-    _capture_alerts(monkeypatch)
-    llm = FakeLLM([GLM_JSON, FLASH_JSON])
-    _stub_llm(monkeypatch, llm)
-    _mock_offline(monkeypatch)
-
-    assert main(["vendors", "--date", "2026-10-29"]) == 0  # 默认提交
+    assert "Claude Opus 6" in md and "Claude Opus 5.5" not in md
+    readme = Path("README.md").read_text("utf-8")
+    assert FMS_VENDORS_START in readme
+    assert "Claude Opus 6" in readme and "Claude Opus 5.5" not in readme
+    saved = load_baseline(baseline_path(Path("data"), DATE))
+    anthropic = next(v for v in saved.vendors if v.id == "anthropic")
+    old, new = anthropic.models
+    assert (old.key, old.retired_on, old.superseded_by) == (
+        "claude-opus-5-5", DATE, "claude-opus-6")
+    assert (new.key, new.added_on, new.retired_on) == ("claude-opus-6", DATE, None)
+    new_alerts = [content for title, content in alerts if title == "发现新模型"]
+    assert len(new_alerts) == 1
+    assert "Claude Opus 5.5" in new_alerts[0]  # 取代了谁
     log = subprocess.run(["git", "-C", str(repo), "log", "--oneline"],
                          check=True, capture_output=True, text=True).stdout
-    assert log.splitlines()[0].endswith("docs: 大模型新鲜度日报 2026-10-29 [skip ci]")
+    assert log.splitlines()[0].endswith(f"docs: 大模型新鲜度日报 {DATE} [skip ci]")
     tracked = subprocess.run(
         ["git", "-C", str(repo), "-c", "core.quotepath=off", "ls-files"],
         check=True, capture_output=True, text=True).stdout
-    assert "data/vendor-models/2026-10-29.json" in tracked  # v3 新基线目录
-    assert "reports/各大厂商大模型新鲜度-2026-10-29.md" in tracked
-    assert "data/vendor-releases/" not in tracked  # v2 旧目录不再写入
-    readme = Path("README.md").read_text("utf-8")
-    assert FMS_VENDORS_START in readme
+    assert f"data/vendor-releases/{DATE}.json" in tracked
+    assert ("[vendors] anthropic: 接收 1 / 拒收 0 / 忽略 0（窗口 2026-08-14）"
+            in capsys.readouterr().out)
+
+
+# ---------- ②：暂态失败——状态原样、-pending、异常告警、退出码 0 ----------
+
+
+def test_transient_error_keeps_state_alerts_exit_zero(tmp_path, monkeypatch):
+    _setup(tmp_path, monkeypatch)
+    fake = FakeBackend({"Anthropic": AgentTransientError("超时"),
+                        "月之暗面": EMPTY_DAILY})
+    _stub_backend(monkeypatch, fake)
+    alerts = _capture_alerts(monkeypatch)
+
+    assert main(["vendors", "--date", DATE, "--no-commit"]) == 0
+
+    saved = load_baseline(baseline_path(Path("data"), DATE))
+    anthropic = next(v for v in saved.vendors if v.id == "anthropic")
+    assert [(m.key, m.retired_on) for m in anthropic.models] == [
+        ("claude-opus-5-5", None)]
+    assert anthropic.last_check is not None
+    assert anthropic.last_check.status == "transient"
+    pending = Path(PENDING_MD).read_text("utf-8")
+    assert "下次运行重试" in pending and "Anthropic" in pending
+    assert [t for t, _ in alerts] == ["大模型新鲜度厂商异常"]
+
+
+# ---------- ③：拒收条目进 pending、不入库 ----------
+
+
+def test_rejected_candidate_goes_to_pending_not_state(tmp_path, monkeypatch):
+    _setup(tmp_path, monkeypatch)
+    fake = FakeBackend({"Anthropic": _daily_answer(FAKE_9),
+                        "月之暗面": EMPTY_DAILY})
+    _stub_backend(monkeypatch, fake)
+    alerts = _capture_alerts(monkeypatch)
+
+    assert main(["vendors", "--date", DATE, "--no-commit"]) == 0  # 仅拒收 → 0
+
+    saved = load_baseline(baseline_path(Path("data"), DATE))
+    anthropic = next(v for v in saved.vendors if v.id == "anthropic")
+    assert [m.key for m in anthropic.models] == ["claude-opus-5-5"]  # 不入库
+    pending = Path(PENDING_MD).read_text("utf-8")
+    assert "证据域名非官方" in pending
+    assert "Claude Fake 9" in pending  # agent 原文摘录
+    assert [t for t, _ in alerts] == ["大模型新鲜度厂商异常"]
+
+
+# ---------- ④：yml 有而基线无的厂商——不提问、进 pending、退出码 1 ----------
+
+
+def test_vendor_in_yml_missing_from_baseline_fails_without_asking(
+        tmp_path, monkeypatch):
+    _setup(tmp_path, monkeypatch)  # yml 两家；基线覆写为只含 anthropic
+    save_baseline(
+        Baseline(date=BASELINE_DATE, vendors=[_baseline().vendors[0]]),
+        baseline_path(Path("data"), BASELINE_DATE))
+    fake = FakeBackend({"Anthropic": EMPTY_DAILY})
+    _stub_backend(monkeypatch, fake)
+    alerts = _capture_alerts(monkeypatch)
+
+    assert main(["vendors", "--date", DATE, "--no-commit"]) == 1
+
+    assert len(fake.queries) == 1  # 只问了 anthropic
+    assert "月之暗面" not in fake.queries[0]
+    pending = Path(PENDING_MD).read_text("utf-8")
+    assert "未建基线" in pending and "--vendor moonshot" in pending
+    assert "大模型新鲜度厂商异常" in [t for t, _ in alerts]
+
+
+# ---------- ⑤：结构性错误（鉴权失败）——中止运行、不写基线、退出码 1 ----------
+
+
+def test_structural_error_aborts_no_baseline_exit_one(tmp_path, monkeypatch):
+    _setup(tmp_path, monkeypatch)
+    fake = FakeBackend({"Anthropic": AgentStructuralError("HTTP 401")})
+    _stub_backend(monkeypatch, fake)
+    alerts = _capture_alerts(monkeypatch)
+
+    assert main(["vendors", "--date", DATE, "--no-commit"]) == 1
+
+    assert not baseline_path(Path("data"), DATE).exists()
+    assert [t for t, _ in alerts] == ["大模型新鲜度日报失败"]
+    assert "HTTP 401" in alerts[0][1]
+
+
+# ---------- ⑥：完全没有基线——结构性失败，提示 --bootstrap ----------
+
+
+def test_no_baseline_at_all_is_structural(tmp_path, monkeypatch):
+    repo, fake = _setup(tmp_path, monkeypatch, baseline=False)
+    alerts = _capture_alerts(monkeypatch)
+
+    assert main(["vendors", "--date", DATE, "--no-commit"]) == 1
+
+    assert fake.queries == []  # 未提问
+    assert [t for t, _ in alerts] == ["大模型新鲜度日报失败"]
+    assert "--bootstrap" in alerts[0][1]
+    assert not baseline_path(Path("data"), DATE).exists()
+    assert _git_log_count(repo) == 1
+
+
+# ---------- ⑦：bootstrap 全量生成草稿——不写报告/README、不提交 ----------
+
+
+def test_bootstrap_writes_draft_without_commit(tmp_path, monkeypatch):
+    repo, fake = _setup(tmp_path, monkeypatch, baseline=False)
+    fake.answers = {"Anthropic": BOOTSTRAP_ANTHROPIC, "月之暗面": BOOTSTRAP_MOONSHOT}
+
+    assert main(["vendors", "--date", DATE, "--bootstrap", "--no-commit"]) == 0
+
+    draft = load_baseline(baseline_path(Path("data"), DATE))
+    assert draft.schema_version == 4
+    states = {v.id: v for v in draft.vendors}
+    assert [(m.key, m.release_date, m.added_on, m.retired_on)
+            for m in states["anthropic"].models] == [
+        ("claude-opus-6", "2026-11-01", DATE, None)]
+    assert [m.key for m in states["moonshot"].models] == ["kimi-k3"]
+    assert states["anthropic"].last_check.status == "ok"
+    assert Path("README.md").read_text("utf-8") == "# free-model-spider\n"
+    assert not Path("reports").exists()
+    assert _git_log_count(repo) == 1  # 不提交
+
+
+# ---------- ⑧：已有基线且未指定 --vendor 的 bootstrap 被拒绝 ----------
+
+
+def test_bootstrap_refuses_when_baseline_exists(tmp_path, monkeypatch):
+    _setup(tmp_path, monkeypatch)
+    path = baseline_path(Path("data"), BASELINE_DATE)
+    before = path.read_bytes()
+    fake = FakeBackend({})  # 被拒后不得有任何提问
+
+    assert main(["vendors", "--date", DATE, "--bootstrap", "--no-commit"]) == 1
+
+    assert path.read_bytes() == before  # 原基线未被覆盖
+    assert fake.queries == []
+
+
+# ---------- ⑨：--vendor 只替换该厂商块，其余厂商原样保留 ----------
+
+
+def test_bootstrap_vendor_merges_only_that_vendor(tmp_path, monkeypatch):
+    repo, fake = _setup(tmp_path, monkeypatch)
+    original = _baseline()
+    fake.answers = {"月之暗面": BOOTSTRAP_MOONSHOT}
+
+    assert main(["vendors", "--date", DATE, "--bootstrap", "--vendor",
+                 "moonshot", "--no-commit"]) == 0
+
+    assert all("Anthropic" not in q for q in fake.queries)  # 只问 moonshot
+    saved = load_baseline(baseline_path(Path("data"), DATE))
+    states = {v.id: v for v in saved.vendors}
+    assert [m.key for m in states["moonshot"].models] == ["kimi-k3"]
+    assert states["moonshot"].last_check is not None
+    assert states["anthropic"].model_dump(by_alias=True) == \
+        original.vendors[0].model_dump(by_alias=True)
+    assert not Path("reports").exists()
+    assert Path("README.md").read_text("utf-8") == "# free-model-spider\n"
+    assert _git_log_count(repo) == 1
+
+
+# ---------- ⑩：--vendor 不在 yml——拒绝且不提问 ----------
+
+
+def test_bootstrap_unknown_vendor_id_rejected(tmp_path, monkeypatch):
+    _setup(tmp_path, monkeypatch, baseline=False)
+    fake = FakeBackend({})
+
+    assert main(["vendors", "--date", DATE, "--bootstrap", "--vendor",
+                 "nope", "--no-commit"]) == 1
+
+    assert fake.queries == []
+    assert not baseline_path(Path("data"), DATE).exists()
+
+
+# ---------- ⑪：bootstrap 暂态厂商——空块 + transient 标记 + 退出码 1 ----------
+
+
+def test_bootstrap_transient_marks_and_returns_one(tmp_path, monkeypatch):
+    repo, fake = _setup(tmp_path, monkeypatch, baseline=False)
+    fake.answers = {"Anthropic": AgentTransientError("超时"),
+                    "月之暗面": BOOTSTRAP_MOONSHOT}
+
+    assert main(["vendors", "--date", DATE, "--bootstrap", "--no-commit"]) == 1
+
+    draft = load_baseline(baseline_path(Path("data"), DATE))
+    states = {v.id: v for v in draft.vendors}
+    assert states["anthropic"].models == []  # 暂态厂商写入空 models 块
+    assert states["anthropic"].last_check.status == "transient"
+    assert [m.key for m in states["moonshot"].models] == ["kimi-k3"]
+    assert states["moonshot"].last_check.status == "ok"
+
+
+# ---------- ⑫：yml 已移除厂商的状态块随日复制保留、不提问不渲染 ----------
+
+
+def test_removed_vendor_block_carried_forward(tmp_path, monkeypatch):
+    _setup(tmp_path, monkeypatch)
+    baseline = _baseline()
+    baseline.vendors.append(VendorState(
+        id="oldco",
+        models=[ModelState(key="oldco-1", name="OldCo 1",
+                           release_date="2026-01-01",
+                           url="https://www.oldco.com/news/a",
+                           added_on="2026-01-01")],
+    ))
+    save_baseline(baseline, baseline_path(Path("data"), BASELINE_DATE))
+    fake = FakeBackend({"Anthropic": EMPTY_DAILY, "月之暗面": EMPTY_DAILY})
+    _stub_backend(monkeypatch, fake)
+
+    assert main(["vendors", "--date", DATE, "--no-commit"]) == 0
+
+    joined = "\n".join(fake.queries)
+    assert "oldco" not in joined and "OldCo" not in joined  # 不提问
+    md = Path(REPORT_MD).read_text("utf-8")
+    assert "OldCo 1" not in md  # 不渲染
+    saved = load_baseline(baseline_path(Path("data"), DATE))
+    oldco = next(v for v in saved.vendors if v.id == "oldco")
+    assert oldco.model_dump(by_alias=True) == baseline.vendors[2].model_dump(
+        by_alias=True)  # 原样保留（只增不删）

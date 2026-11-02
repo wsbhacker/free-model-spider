@@ -1,83 +1,44 @@
-"""厂商新鲜度统计的配置模型与加载（v3：人工圈定模型清单）。"""
+"""厂商新鲜度 v4 配置：仅厂商身份；模型清单由状态文件承载（spec §4）。
+
+v4 变更（spec 2026-11-02）：模型清单 / 公告源 / 目录 slug 全部移出配置，
+旧字段（models / announcements / directory_slugs / manual）混入即报错。
+"""
 
 from pathlib import Path
-from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-class ManualRef(BaseModel):
-    """人工纠偏兜底（v3 spec §3）：配置即 confirmed（source=manual），不参与日常提取。
-
-    日常形态只维护模型清单（match/exclude）；manual 仅在管线提错日期时钉死真值用。
-    """
-
-    model_config = ConfigDict(extra="forbid")  # yml 拼错字段名直接报错，不静默忽略
-
-    date: str
-    url: str
-
-
-class ModelConfig(BaseModel):
-    """单个已维护模型：match/exclude 是公告条目标题与目录 id 的窄匹配
-    （regex any-of + exclude 子串剔除，text 已 casefold、目录 id 保留连字符与 ':'）。
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    key: str
-    name: str
-    match: list[str] = Field(min_length=1)
-    exclude: list[str] = Field(default_factory=list)
-    manual: ManualRef | None = None
-
-
-class AnnouncementSource(BaseModel):
-    """官方公告源：官网爬取日期提取通道的数据入口（四模式，沿用 v2 spec §3/§4）。
-
-    mode 决定解析器：sitemap（loc+lastmod）/ headings（日期节+模型子节）/
-    links（锚点+邻近日期）/ json（script 内 title+日期键对）。
-    include 仅 sitemap 模式用：URL path 过滤正则（如 ``/news/``）。
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    name: str
-    url: str
-    mode: Literal["sitemap", "headings", "links", "json"] = "links"
-    include: str | None = None
-
-
 class VendorConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    """单个厂商身份：id 为状态文件主键，official_domains 为证据 URL 白名单。"""
 
-    id: str
+    model_config = ConfigDict(extra="forbid")  # v3 字段混入直接报错，不静默忽略
+
+    id: str = Field(pattern=r"^[a-z0-9-]+$")
     name: str
     official_domains: list[str] = Field(min_length=1)
-    directory_slugs: dict[str, list[str]] = Field(min_length=1)
-    models: list[ModelConfig] = Field(min_length=1)
-    announcements: list[AnnouncementSource] = Field(default_factory=list)
-
-    @model_validator(mode="after")
-    def _check_models(self) -> "VendorConfig":
-        keys = [model.key for model in self.models]
-        if len(set(keys)) != len(keys):
-            raise ValueError(f"model key 重复: {keys}")
-        return self
+    aliases: list[str] = Field(default_factory=list)  # 提问时附带的别名/中文名
 
 
-class VendorReleasesConfig(BaseModel):
+class VendorsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     vendors: list[VendorConfig] = Field(min_length=1)
 
+    @model_validator(mode="after")
+    def _check_unique_ids(self) -> "VendorsConfig":
+        ids = [vendor.id for vendor in self.vendors]
+        if len(set(ids)) != len(ids):
+            raise ValueError(f"vendor id 重复: {ids}")
+        return self
 
-def load_config(path: Path) -> VendorReleasesConfig:
-    """读取厂商新鲜度统计配置；YAML 语法错误包装为带文件路径的 ValueError。"""
+
+def load_config(path: Path) -> VendorsConfig:
+    """读取厂商配置；YAML 语法错误包装为带文件路径的 ValueError（沿用 v3）。"""
     text = path.read_text(encoding="utf-8")
     try:
         data = yaml.safe_load(text)
     except yaml.YAMLError as exc:
         raise ValueError(f"{path}: YAML 解析失败: {exc}") from exc
-    return VendorReleasesConfig.model_validate(data)
+    return VendorsConfig.model_validate(data)

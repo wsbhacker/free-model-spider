@@ -1,0 +1,10 @@
+# 厂商身份；模型清单由 data/vendor-releases/ 状态文件承载，不在此维护（v4 spec 2026-11-02）
+vendors:
+  - {id: openai, name: OpenAI, official_domains: [openai.com]}
+  - {id: anthropic, name: Anthropic, official_domains: [anthropic.com], aliases: [Claude]}
+  - {id: google, name: Google DeepMind, official_domains: [blog.google, deepmind.google, ai.google.dev], aliases: [Gemini]}
+  - {id: deepseek, name: DeepSeek, official_domains: [deepseek.com, api-docs.deepseek.com]}
+  - {id: qwen, name: 阿里 Qwen, official_domains: [qwen.ai, qwenlm.github.io], aliases: [Qwen, 通义千问]}
+  - {id: moonshot, name: 月之暗面, official_domains: [moonshot.cn, moonshot.ai, kimi.com], aliases: [Moonshot AI, Kimi]}
+  - {id: zhipu, name: 智谱 AI, official_domains: [z.ai, bigmodel.cn, zhipuai.cn], aliases: [Zhipu AI, GLM]}
+  - {id: minimax, name: MiniMax, official_domains: [minimax.io, minimaxi.com]}
