@@ -6,6 +6,16 @@ on:
     # 晚于 daily 10 分钟，正常情况下接在其后跑
     - cron: "13 23 */2 * *"
   workflow_dispatch:
+    inputs:
+      mode:
+        description: run=日常监测, bootstrap=生成基线草稿
+        type: choice
+        options: [run, bootstrap]
+        default: run
+      vendor:
+        description: 仅 bootstrap 用的厂商 id
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -42,12 +52,21 @@ jobs:
 
       - name: Run vendor freshness report
         env:
-          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-          LLM_API_BASE: ${{ vars.LLM_API_BASE }}
-          LLM_MODEL: ${{ vars.LLM_MODEL }}
-          LLM_FALLBACK_MODELS: ${{ vars.LLM_FALLBACK_MODELS }}
+          DIFY_API_BASE: ${{ vars.DIFY_API_BASE }}
+          DIFY_API_TOKEN: ${{ secrets.DIFY_API_TOKEN }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
           ALERT_WEBHOOK_TOKEN: ${{ secrets.ALERT_WEBHOOK_TOKEN }}
         run: |
           export PATH="$HOME/.local/bin:$PATH"
-          uv run fms vendors
+          if [ "${{ inputs.mode }}" = "bootstrap" ]; then
+            uv run fms vendors --bootstrap --no-commit ${{ inputs.vendor && format('--vendor {0}', inputs.vendor) || '' }}
+          else
+            uv run fms vendors
+          fi
+
+      - name: Upload baseline draft
+        if: ${{ inputs.mode == 'bootstrap' }}
+        uses: actions/upload-artifact@v6
+        with: {name: vendor-baseline-draft, path: data/vendor-releases/}
