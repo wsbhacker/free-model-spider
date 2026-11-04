@@ -63,6 +63,15 @@ from free_model_spider.sources.base import sort_records
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 
+def _raw_answer_preview(text: str, limit: int = 2000) -> str:
+    """Agent 回答解析失败时的原始文本调试预览：repr 转义暴露隐藏字符，
+    超长按头部 limit 字符 + 尾部 300 字符截断（解析失配点通常在头尾）。"""
+    if len(text) <= limit:
+        return repr(text)
+    return (f"{text[:limit]!r}…（中间截断，全文 {len(text)} 字符，"
+            f"尾部：{text[-300:]!r}）")
+
+
 def _git_commit(date: str, data_dir: Path, reports_dir: Path, readme: Path,
                 message: str | None = None) -> None:
     if message is None:
@@ -130,7 +139,8 @@ def run_vendors(args) -> int:
                 try:
                     query = build_bootstrap_query(
                         vendor.name, vendor.aliases, vendor.official_domains, date)
-                    answer = parse_bootstrap_answer(backend.ask(query).text)
+                    raw_answer = backend.ask(query).text
+                    answer = parse_bootstrap_answer(raw_answer)
                 except AgentTransientError as exc:
                     print(f"vendors: {vendor.id} bootstrap 暂态失败：{exc}"
                           "（写入空 models 块，请重试）")
@@ -143,7 +153,8 @@ def run_vendors(args) -> int:
                 if answer is None:
                     detail = "agent 回答不可解析（暂态，请重试）"
                     print(f"vendors: {vendor.id} bootstrap {detail}"
-                          "（写入空 models 块）")
+                          f"（写入空 models 块）原始回答："
+                          f"{_raw_answer_preview(raw_answer)}")
                     drafts[vendor.id] = VendorState(
                         id=vendor.id,
                         last_check=LastCheck(date=date, status="transient",
@@ -226,6 +237,8 @@ def run_vendors(args) -> int:
                 answer = parse_daily_answer(result.text)
                 if answer is None:  # 结构不对整厂商记暂态（spec §7.1）
                     detail = "agent 回答不可解析（暂态，下次运行重试）"
+                    print(f"vendors: {vendor.id} {detail}；原始回答："
+                          f"{_raw_answer_preview(result.text)}")
                     state.last_check = LastCheck(date=date, status="transient",
                                                  detail=detail)
                     run_failures.append(PendingLine(vendor.name, detail))
