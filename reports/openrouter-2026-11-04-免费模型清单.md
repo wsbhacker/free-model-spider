@@ -4,10 +4,10 @@
 ## 🆕 新增 (1)
 ### stealth/crouton-alpha
 - 名称：Crouton Alpha
-- 介绍：Crouton Alpha 是 OpenRouter 平台上的匿名“隐身”（Stealth）模型，面向可扩展的编程、智能体（agentic）与多模态工作流设计，适合大批量重复任务中的子任务执行、工具调用与文档分析。它拥有 1048576（约 1M）token 上下文，支持文本、图像、音频、视频及文件输入、文本输出，可免费使用，且承诺不使用用户数据训练。其开发者与运营方为选择匿名的第三方，平台方明确声明并非其开发者、所有者或提供方。
-- 要点：OpenRouter 隐身模型，开发者与运营方匿名，平台方非其提供者；约 1M token 上下文，支持文本/图像/音频/视频/文件输入；定位轻量高效推理，专注智能体子任务、工具调用与文档分析；免费使用，官方称不以用户数据进行训练；多家第三方提供商可调用，输入/输出价格低至 $0.00/1M tokens
-- 注意：模型真实开发方身份未公开（有媒体推测可能与 Meta 有关但未证实）；基准评测、参数规模、具体架构等信息在给定材料中缺失。
-- 链接：[平台页](https://openrouter.ai/stealth/crouton-alpha) ｜ <https://cellcog.ai/blog/what-is-crouton-alpha/> ｜ <https://www.orcarouter.ai/blog/crouton-alpha-stealth-model-leak> ｜ <https://x.com/OpenRouter/status/2117712705901728199>
+- 介绍：Crouton Alpha 是 OpenRouter 平台上的一款匿名「隐秘」（stealth）模型，由选择保持匿名的第三方开发运营，路由平台明确声明并非其开发者或所有者。它是一款轻量级、高效率的推理模型，主打可扩展的编码、智能体（agentic）与多模态工作流，适合执行智能体子任务、工具调用及批量重复工作中的文档分析。该模型支持文本、图像、音频、视频及文件输入，仅输出文本，上下文窗口达 104.8 万 token，目前可免费使用，且声明不会用用户数据进行训练。
+- 要点：OpenRouter 平台上的匿名「隐秘」模型，开发者身份保密，当前免费开放使用；上下文长度约 105 万 token，支持文本、图像、音频、视频及文件输入，输出为文本；面向可扩展的编码、智能体与多模态工作流，擅长工具调用、子任务执行与文档分析；高效率推理模型，专为智能体高频重复任务设计；官方声明不会用数据训练；仅提供文本输出；早期线索指向 Meta 等猜测未经证实
+- 注意：模型真实身份、参数规模、具体基准成绩与发布方背景均未获官方确认；created 时间戳与部分评测细节（如 CellCog 的「评分」、Reddit 用户实测结论）在给定材料中缺乏具体内容，故未纳入正文。
+- 链接：[平台页](https://openrouter.ai/stealth/crouton-alpha) ｜ <https://cellcog.ai/blog/what-is-crouton-alpha/> ｜ <https://www.orcarouter.ai/blog/crouton-alpha-stealth-model-leak> ｜ <https://www.reddit.com/r/opencodeCLI/comments/1xn4wn5/anyone_already_tested_crouton_alpha_stealth_model/>
 
 ## 🗑️ 移除——无变化
 - 无
