@@ -134,7 +134,10 @@ class DifyAgentBackend:
                 raise AgentTransientError("Dify 流耗尽未见 message_end")
             except (httpx.TransportError, httpx_sse.SSEError) as exc:
                 if in_stream:  # 流中途失败不重试
-                    raise AgentTransientError(f"Dify 流中途失败：{exc}") from exc
+                    elapsed = self._clock() - start
+                    raise AgentTransientError(
+                        f"Dify 流中途失败（已流 {elapsed:.0f}s）：{exc}"
+                    ) from exc
                 if attempt >= 1:  # 首字节前失败且已重试过
                     raise AgentTransientError(f"Dify 首字节前失败（重试后仍失败）：{exc}") from exc
                 self._sleep(RETRY_DELAY_SECONDS)
