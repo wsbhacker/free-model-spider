@@ -193,6 +193,33 @@
     },
     {
       "source": "opencode",
+      "id": "inkling-2-small-free",
+      "name": "Inkling 2 Small Free",
+      "context_length": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "raw": {
+        "pricing": {
+          "model": "Inkling 2 Small Free",
+          "input": "Free",
+          "output": "Free",
+          "cached_read": "Free",
+          "cached_write": "-"
+        }
+      }
+    },
+    {
+      "source": "opencode",
       "id": "jev-1.13-free",
       "name": "Jev 1.13 Free",
       "context_length": null,
@@ -314,33 +341,6 @@
       "raw": {
         "pricing": {
           "model": "Nemotron 3.5 Super VL Free",
-          "input": "Free",
-          "output": "Free",
-          "cached_read": "Free",
-          "cached_write": "-"
-        }
-      }
-    },
-    {
-      "source": "opencode",
-      "id": "pulse-alpha-free",
-      "name": "Pulse Alpha Free",
-      "context_length": 1048576,
-      "input_modalities": [
-        "text",
-        "image"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "created": null,
-      "description": "",
-      "links": {
-        "platform_page": "https://opencode.ai/v2/docs/console/models/"
-      },
-      "raw": {
-        "pricing": {
-          "model": "Pulse Alpha Free",
           "input": "Free",
           "output": "Free",
           "cached_read": "Free",

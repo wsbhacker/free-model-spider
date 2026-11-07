@@ -4,8 +4,28 @@
   "display_name": "OpenRouter",
   "date": "2026-11-07",
   "baseline_date": "2026-11-06",
-  "total": 14,
-  "added": [],
+  "total": 15,
+  "added": [
+    {
+      "source": "openrouter",
+      "id": "liquid/lfm-3-1.7b:free",
+      "name": "LiquidAI: LFM3-1.7B (free)",
+      "context_length": 262144,
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": 1794009477,
+      "description": "A compact 1.7B-parameter text model with a 256K-token context, post-trained for agents, tool calling, and structured outputs. It reasons before it answers. Prompts and outputs may be retained and used...",
+      "links": {
+        "platform_page": "https://openrouter.ai/liquid/lfm-3-1.7b:free",
+        "hugging_face": "LiquidAI/LFM3-1.7B"
+      },
+      "page_url": "https://openrouter.ai/liquid/lfm-3-1.7b:free"
+    }
+  ],
   "removed": [
     {
       "source": "openrouter",

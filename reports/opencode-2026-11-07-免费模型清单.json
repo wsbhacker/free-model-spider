@@ -23,9 +23,48 @@
         "platform_page": "https://opencode.ai/v2/docs/console/models/"
       },
       "page_url": "https://opencode.ai/v2/docs/console/models/"
+    },
+    {
+      "source": "opencode",
+      "id": "inkling-2-small-free",
+      "name": "Inkling 2 Small Free",
+      "context_length": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "page_url": "https://opencode.ai/v2/docs/console/models/"
     }
   ],
-  "removed": [],
+  "removed": [
+    {
+      "source": "opencode",
+      "id": "pulse-alpha-free",
+      "name": "Pulse Alpha Free",
+      "context_length": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "page_url": "https://opencode.ai/v2/docs/console/models/"
+    }
+  ],
   "unchanged": [
     {
       "source": "opencode",
@@ -216,25 +255,6 @@
       "source": "opencode",
       "id": "nemotron-3.5-super-vl-free",
       "name": "Nemotron 3.5 Super VL Free",
-      "context_length": 1048576,
-      "input_modalities": [
-        "text",
-        "image"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "created": null,
-      "description": "",
-      "links": {
-        "platform_page": "https://opencode.ai/v2/docs/console/models/"
-      },
-      "page_url": "https://opencode.ai/v2/docs/console/models/"
-    },
-    {
-      "source": "opencode",
-      "id": "pulse-alpha-free",
-      "name": "Pulse Alpha Free",
       "context_length": 1048576,
       "input_modalities": [
         "text",
