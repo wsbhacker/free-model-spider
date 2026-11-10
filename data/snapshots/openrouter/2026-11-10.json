@@ -908,14 +908,14 @@
             {
               "arena": "models",
               "category": "svg",
-              "elo": 1067,
-              "win_rate": 32.1,
+              "elo": 1066,
+              "win_rate": 32,
               "rank": 76
             },
             {
               "arena": "models",
               "category": "uicomponent",
-              "elo": 1137,
+              "elo": 1136,
               "win_rate": 36,
               "rank": 87
             },
@@ -1106,9 +1106,9 @@
             {
               "arena": "models",
               "category": "3d",
-              "elo": 1124,
-              "win_rate": 30.9,
-              "rank": 82
+              "elo": 1122,
+              "win_rate": 30.8,
+              "rank": 83
             },
             {
               "arena": "models",
@@ -1120,9 +1120,9 @@
             {
               "arena": "models",
               "category": "dataviz",
-              "elo": 1097,
-              "win_rate": 27.2,
-              "rank": 102
+              "elo": 1099,
+              "win_rate": 27.4,
+              "rank": 101
             },
             {
               "arena": "models",
@@ -1311,6 +1311,14 @@
           "/api/v1/messages",
           "/api/v1/responses"
         ],
+        "benchmarks": {
+          "design_arena": [],
+          "artificial_analysis": {
+            "intelligence_index": 30.6,
+            "coding_index": null,
+            "agentic_index": null
+          }
+        },
         "reasoning": {
           "mandatory": true,
           "default_enabled": true,

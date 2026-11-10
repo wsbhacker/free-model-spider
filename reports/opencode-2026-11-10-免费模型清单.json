@@ -4,7 +4,7 @@
   "display_name": "OpenCode",
   "date": "2026-11-10",
   "baseline_date": "2026-11-09",
-  "total": 13,
+  "total": 14,
   "added": [
     {
       "source": "opencode",
@@ -14,6 +14,26 @@
       "input_modalities": [
         "text",
         "image"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "page_url": "https://opencode.ai/v2/docs/console/models/"
+    },
+    {
+      "source": "opencode",
+      "id": "minimax-m3.1-flash-free",
+      "name": "MiniMax M3.1 Flash Free",
+      "context_length": 1000000,
+      "input_modalities": [
+        "text",
+        "image",
+        "video"
       ],
       "output_modalities": [
         "text"

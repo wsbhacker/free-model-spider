@@ -4,10 +4,10 @@
 ## 🆕 新增 (1)
 ### thinkingmachines/inkling-2-small:free
 - 名称：Thinking Machines: Inkling 2 Small (free)
-- 介绍：Inkling 2 Small 是 Thinking Machines Lab 推出的多模态混合专家（MoE）推理模型，总参数 594B、激活参数 17B，支持图像输入与文本输出，上下文长度达 1,048,576。该模型在知识、数学、科学及代码与工具使用上表现良好，可调整思考时间以平衡速度与性能，并在 AA Intelligence Index 上得分 31，较前代大幅提升。
-- 要点：MoE 架构：594B 总参数、17B 激活参数；支持图像输入与文本输出，上下文长度 1,048,576；可调思考时间，平衡速度与性能；擅长知识、数学、科学、代码与工具调用；AA Intelligence Index 得分 31，较前代显著提升；发布时为闭源权重，计划后续开放并支持微调
-- 注意：平台描述文本被截断，部分信息来自官方新闻页与社交平台摘要；发布日期在材料中显示为 2026 年 11 月 5 日，可能与实际存在出入；开源权重释放时间等细节未完全明确。
-- 链接：[平台页](https://openrouter.ai/thinkingmachines/inkling-2-small:free) ｜ <https://thinkingmachines.ai/news/inkling-2-small/> ｜ <https://thinkingmachines.ai/inkling/> ｜ <https://modelslab.com/models/thinkingmachines/thinkingmachines-inkling-2-small-free>
+- 介绍：Inkling 2 Small 是 Thinking Machines Lab 推出的多模态混合专家（MoE）推理模型，总参数 594B、激活参数 17B，支持图像输入与文本输出，上下文长度达 1,048,576。作为 Inkling 系列第二代的首款模型，它在知识、数学和科学任务上表现良好，能编写代码并调用工具完成任务，且可调节思考时长以平衡速度与性能。发布时为闭源权重，官方计划在完成额外安全测试后数周内开放权重。
+- 要点：MoE 架构：594B 总参数、17B 激活参数；多模态：支持图像输入，上下文 1M tokens；可变思考时长，平衡速度与性能；擅长知识、数学、科学及代码与工具使用；发布时闭源，拟在安全测试后开放权重
+- 注意：关于模型的具体评测数据、训练细节及 license 来源材料有限，仅 Artificial Analysis 提到部分评分；free 版本与正式版的差异未在材料中说明。
+- 链接：[平台页](https://openrouter.ai/thinkingmachines/inkling-2-small:free) ｜ <https://thinkingmachines.ai/news/inkling-2-small/> ｜ <https://thinkingmachines.ai/inkling/> ｜ <https://artificialanalysis.ai/articles/thinking-machines-releases-inkling-2-small-highest-scoring-open-weights-model-outside-of-chinia-upon-weights-release-it>
 
 ## 🗑️ 移除 (1)
 - [stealth/crouton-alpha](https://openrouter.ai/stealth/crouton-alpha)（最后出现：2026-11-09）
