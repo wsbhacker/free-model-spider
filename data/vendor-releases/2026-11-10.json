@@ -1,0 +1,275 @@
+{
+  "schema": 4,
+  "date": "2026-11-10",
+  "vendors": [
+    {
+      "id": "openai",
+      "models": [
+        {
+          "key": "gpt-6-1-terra",
+          "name": "GPT-6.1 Terra",
+          "release_date": "2026-10-26",
+          "url": "https://openai.com/index/introducing-gpt-6-1-terra",
+          "added_on": "2026-11-03",
+          "retired_on": null,
+          "superseded_by": null
+        },
+        {
+          "key": "gpt-6-1-sol",
+          "name": "GPT-6.1 Sol",
+          "release_date": "2026-09-29",
+          "url": "https://openai.com/index/introducing-gpt-6-1-sol",
+          "added_on": "2026-11-03",
+          "retired_on": null,
+          "superseded_by": null
+        },
+        {
+          "key": "gpt-6-luna",
+          "name": "GPT-6 Luna",
+          "release_date": "2026-09-22",
+          "url": "https://openai.com/index/introducing-gpt-6-sol-and-luna",
+          "added_on": "2026-11-03",
+          "retired_on": null,
+          "superseded_by": null
+        },
+        {
+          "key": "gpt-6-astra",
+          "name": "GPT-6 Astra",
+          "release_date": "2026-09-03",
+          "url": "https://openai.com/index/gpt-6-astra",
+          "added_on": "2026-11-03",
+          "retired_on": null,
+          "superseded_by": null
+        }
+      ],
+      "last_check": {
+        "date": "2026-11-10",
+        "status": "transient",
+        "detail": "agent 回答不可解析（暂态，下次运行重试）"
+      }
+    },
+    {
+      "id": "anthropic",
+      "models": [
+        {
+          "key": "claude-haiku-5-5",
+          "name": "Claude Haiku 5.5",
+          "release_date": "2026-10-07",
+          "url": "https://www.anthropic.com/claude-haiku-5-5",
+          "added_on": "2026-11-03",
+          "retired_on": null,
+          "superseded_by": null
+        },
+        {
+          "key": "claude-sonnet-5-5",
+          "name": "Claude Sonnet 5.5",
+          "release_date": "2026-09-28",
+          "url": "https://www.anthropic.com/claude-sonnet-5-5",
+          "added_on": "2026-11-03",
+          "retired_on": null,
+          "superseded_by": null
+        },
+        {
+          "key": "claude-opus-5-5",
+          "name": "Claude Opus 5.5",
+          "release_date": "2026-09-22",
+          "url": "https://www.anthropic.com/claude-opus-5-5",
+          "added_on": "2026-11-03",
+          "retired_on": null,
+          "superseded_by": null
+        },
+        {
+          "key": "claude-fable-5-1",
+          "name": "Claude Fable 5.1",
+          "release_date": "2026-09-01",
+          "url": "https://www.anthropic.com/claude-fable-and-mythos-5-1",
+          "added_on": "2026-11-03",
+          "retired_on": null,
+          "superseded_by": null
+        }
+      ],
+      "last_check": {
+        "date": "2026-11-10",
+        "status": "transient",
+        "detail": "agent 回答不可解析（暂态，下次运行重试）"
+      }
+    },
+    {
+      "id": "google",
+      "models": [
+        {
+          "key": "gemini-4-carbon",
+          "name": "Gemini 4 Carbon",
+          "release_date": "2026-10-28",
+          "url": "https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-gemini-4-carbon",
+          "added_on": "2026-11-03",
+          "retired_on": null,
+          "superseded_by": null
+        },
+        {
+          "key": "gemini-4-argon",
+          "name": "Gemini 4 Argon",
+          "release_date": "2026-09-30",
+          "url": "https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-4-argon",
+          "added_on": "2026-11-03",
+          "retired_on": null,
+          "superseded_by": null
+        },
+        {
+          "key": "gemini-3-8-flash",
+          "name": "Gemini 3.8 Flash",
+          "release_date": "2026-09-02",
+          "url": "https://blog.google/innovation-and-ai/models-and-research/gemini-models/3-8-flash-and-3-8-flash-cyber",
+          "added_on": "2026-11-03",
+          "retired_on": null,
+          "superseded_by": null
+        }
+      ],
+      "last_check": {
+        "date": "2026-11-10",
+        "status": "transient",
+        "detail": "agent 回答不可解析（暂态，下次运行重试）"
+      }
+    },
+    {
+      "id": "deepseek",
+      "models": [
+        {
+          "key": "deepseek-v4-1-flash-1017",
+          "name": "DeepSeek-V4.1-Flash-1017",
+          "release_date": "2026-10-17",
+          "url": "https://api-docs.deepseek.com/zh-cn/news/news261017",
+          "added_on": "2026-11-03",
+          "retired_on": null,
+          "superseded_by": null
+        },
+        {
+          "key": "deepseek-v4-pro-0813",
+          "name": "DeepSeek-V4-Pro-0813",
+          "release_date": "2026-08-13",
+          "url": "https://api-docs.deepseek.com/zh-cn/news/news260813",
+          "added_on": "2026-11-03",
+          "retired_on": null,
+          "superseded_by": null
+        }
+      ],
+      "last_check": {
+        "date": "2026-11-10",
+        "status": "transient",
+        "detail": "agent 回答不可解析（暂态，下次运行重试）"
+      }
+    },
+    {
+      "id": "qwen",
+      "models": [
+        {
+          "key": "qwen3-8-omni-flash",
+          "name": "Qwen3.8-Omni-Flash",
+          "release_date": "2026-09-18",
+          "url": "https://qwen.ai/blog?id=qwen3.8-omni-flash",
+          "added_on": "2026-11-03",
+          "retired_on": null,
+          "superseded_by": null
+        },
+        {
+          "key": "qwen3-8-max",
+          "name": "Qwen3.8-Max",
+          "release_date": "2026-08-02",
+          "url": "https://qwen.ai/blog?id=qwen3.8",
+          "added_on": "2026-11-03",
+          "retired_on": null,
+          "superseded_by": null
+        }
+      ],
+      "last_check": {
+        "date": "2026-11-10",
+        "status": "transient",
+        "detail": "agent 回答不可解析（暂态，下次运行重试）"
+      }
+    },
+    {
+      "id": "moonshot",
+      "models": [
+        {
+          "key": "kimi-k3-1-pro",
+          "name": "Kimi K3.1 Pro",
+          "release_date": "2026-10-24",
+          "url": "https://www.kimi.com/news/kimi-k3-1-pro",
+          "added_on": "2026-11-03",
+          "retired_on": null,
+          "superseded_by": null
+        },
+        {
+          "key": "kimi-k3-1-pro-highspeed",
+          "name": "Kimi K3.1 Pro Highspeed",
+          "release_date": "2026-10-24",
+          "url": "https://www.kimi.com/news/kimi-k3-1-pro",
+          "added_on": "2026-11-03",
+          "retired_on": null,
+          "superseded_by": null
+        }
+      ],
+      "last_check": {
+        "date": "2026-11-10",
+        "status": "transient",
+        "detail": "agent 回答不可解析（暂态，下次运行重试）"
+      }
+    },
+    {
+      "id": "zhipu",
+      "models": [
+        {
+          "key": "glm-5-3-flash",
+          "name": "GLM-5.3-Flash",
+          "release_date": "2026-08-26",
+          "url": "https://docs.bigmodel.cn/cn/update/new-releases",
+          "added_on": "2026-11-03",
+          "retired_on": null,
+          "superseded_by": null
+        },
+        {
+          "key": "glm-5-3",
+          "name": "GLM-5.3",
+          "release_date": "2026-08-19",
+          "url": "https://docs.bigmodel.cn/cn/update/new-releases",
+          "added_on": "2026-11-03",
+          "retired_on": null,
+          "superseded_by": null
+        }
+      ],
+      "last_check": {
+        "date": "2026-11-10",
+        "status": "transient",
+        "detail": "agent 回答不可解析（暂态，下次运行重试）"
+      }
+    },
+    {
+      "id": "minimax",
+      "models": [
+        {
+          "key": "minimax-m3-1-flash",
+          "name": "MiniMax M3.1 Flash",
+          "release_date": "2026-10-19",
+          "url": "https://www.minimax.io/blog/minimax-m31f",
+          "added_on": "2026-11-03",
+          "retired_on": null,
+          "superseded_by": null
+        },
+        {
+          "key": "minimax-m3",
+          "name": "MiniMax M3",
+          "release_date": "2026-06-01",
+          "url": "https://www.minimax.io/blog/minimax-m3",
+          "added_on": "2026-11-03",
+          "retired_on": null,
+          "superseded_by": null
+        }
+      ],
+      "last_check": {
+        "date": "2026-11-10",
+        "status": "transient",
+        "detail": "agent 回答不可解析（暂态，下次运行重试）"
+      }
+    }
+  ]
+}
