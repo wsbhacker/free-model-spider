@@ -873,8 +873,8 @@
             {
               "arena": "models",
               "category": "3d",
-              "elo": 1115,
-              "win_rate": 38.1,
+              "elo": 1116,
+              "win_rate": 38,
               "rank": 84
             },
             {
@@ -887,7 +887,7 @@
             {
               "arena": "models",
               "category": "codecategories",
-              "elo": 1141,
+              "elo": 1142,
               "win_rate": 35.9,
               "rank": 92
             },
@@ -901,9 +901,9 @@
             {
               "arena": "models",
               "category": "gamedev",
-              "elo": 1132,
+              "elo": 1134,
               "win_rate": 35.8,
-              "rank": 81
+              "rank": 80
             },
             {
               "arena": "models",
@@ -915,8 +915,8 @@
             {
               "arena": "models",
               "category": "uicomponent",
-              "elo": 1135,
-              "win_rate": 35.9,
+              "elo": 1137,
+              "win_rate": 36.1,
               "rank": 87
             },
             {
@@ -1106,15 +1106,15 @@
             {
               "arena": "models",
               "category": "3d",
-              "elo": 1120,
-              "win_rate": 31.2,
-              "rank": 82
+              "elo": 1116,
+              "win_rate": 30.4,
+              "rank": 83
             },
             {
               "arena": "models",
               "category": "codecategories",
               "elo": 1150,
-              "win_rate": 33.5,
+              "win_rate": 33.4,
               "rank": 88
             },
             {
@@ -1127,8 +1127,8 @@
             {
               "arena": "models",
               "category": "gamedev",
-              "elo": 1102,
-              "win_rate": 29.6,
+              "elo": 1103,
+              "win_rate": 29.5,
               "rank": 96
             },
             {
@@ -1141,7 +1141,7 @@
             {
               "arena": "models",
               "category": "website",
-              "elo": 1165,
+              "elo": 1166,
               "win_rate": 35.3,
               "rank": 85
             }
