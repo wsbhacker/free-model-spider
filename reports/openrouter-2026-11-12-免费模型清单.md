@@ -4,10 +4,10 @@
 ## 🆕 新增 (1)
 ### baidu/ernie-5.5-flash-preview:free
 - 名称：Baidu: ERNIE-5.5-Flash-Preview (free)
-- 介绍：ERNIE 5.5 Flash Preview 是百度文心（ERNIE）家族最新的基础模型，于2026年11月11日发布。该模型拥有2800亿总参数，每token激活140亿，支持100万token上下文，仅支持文本输入与输出。模型在编码、智能体能力、知识工作与深度研究方面全面增强，可编写代码、调用工具并迭代完成游戏构建、3D建模与视频制作，还能通过FreeCAD脚本完成可编辑的CAD工程设计。该版本在OpenRouter上由百度千帆提供免费服务。
-- 要点：ERNIE 5.5 Flash Preview：280B总参数、14B激活参数、100万token上下文；2026年11月11日发布，权重计划于11月25日发布；在编码、智能体、知识工作与深度研究上全面增强；可编写代码并迭代完成游戏、3D模型与视频制作；支持FreeCAD Python脚本进行CAD建模（如W16发动机、建筑方案）
-- 注意：发布日期与参数细节部分来自第三方媒体（runtimewire等）而非官方页面；官方描述中280B参数信息被截断；免费版本的具体调用限制、速率与可用期限未在材料中说明；created时间戳与搜索结果中的发布日期存在不一致，未进一步核实。
-- 链接：[平台页](https://openrouter.ai/baidu/ernie-5.5-flash-preview:free) ｜ <https://ernie.baidu.com/> ｜ <https://ernie.baidu.com/release/ernie-5-5-flash-preview> ｜ <https://runtimewire.com/article/baidu-ernie-5-5-flash-preview-280b-14b-active>
+- 介绍：ERNIE 5.5 Flash Preview 是百度 ERNIE 家族最新的基础模型，在代码编写、智能体（agentic）能力、知识工作与深度研究等方面全面改进。模型拥有 2800 亿总参数、每 token 激活 140 亿参数，支持 100 万 token 上下文，输入输出均为文本。它可编写代码、调用工具并迭代完成游戏开发、3D 建模、视频制作，还能通过 FreeCAD 编写 Python 脚本生成可编辑的 CAD 模型。该模型在 OpenRouter 上以免费端点提供服务。
+- 要点：2800 亿总参数、140 亿激活参数的 MoE 架构，100 万 token 上下文；在编码、智能体能力、知识工作与深度研究上全面提升；可调用工具迭代完成游戏、3D 模型与视频创作；能撰写 FreeCAD Python 脚本构建可编辑的 CAD 引擎与建筑模型；OpenRouter 免费端点由百度千帆（Qianfan）提供，token 免费
+- 注意：参数规模、发布日期（2026年11月11日）与开放权重时间等来自第三方搜索摘要，未能由官方元数据直接验证；模型描述文本在材料中被截断，且免费定价与提供方可能随时变动。
+- 链接：[平台页](https://openrouter.ai/baidu/ernie-5.5-flash-preview:free) ｜ <https://ernie.baidu.com/> ｜ <https://ernie.baidu.com/release/ernie-5-5-flash-preview> ｜ <https://modelfit.io/blog/ernie-5-5-flash-preview-api-only-weights-soon/>
 
 ## 🗑️ 移除——无变化
 - 无
