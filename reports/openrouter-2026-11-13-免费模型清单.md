@@ -4,16 +4,16 @@
 ## 🆕 新增 (2)
 ### apodex/apodex-1.1-mini:free
 - 名称：Apodex: Apodex 1.1 Mini (free)
-- 介绍：Apodex 1.1 Mini 是 Apodex 推出的「推理优先」模型，面向复杂的长周期研究与预测任务，可直接处理文件、数据、代码和工具以产出可验证结果。该模型为免费版本，通过 OpenRouter 调用，模型 ID 为 apodex/apodex-1.1-mini:free，上下文窗口与最大输出均为 262,144 token，输入输出均为文本。Hugging Face 页面显示其为 360 亿参数的文本生成模型。
-- 要点：推理优先（reasoning-first），专为复杂、长周期研究与预测任务设计；可直接使用文件、数据、代码和工具，产出可验证的结果；上下文窗口 262,144 token，最大输出 262,144 token；输入/输出模态均为文本，属文本生成模型；在 OpenRouter 上免费使用，模型 ID：apodex/apodex-1.1-mini:free
-- 注意：关于架构细节、训练数据、基准测试表现等材料未提供，无法补充；36B 参数仅见于 Hugging Face 摘要，未获其他来源交叉验证；创建时间戳含义（是否为发布时间）无法从材料确认。
+- 介绍：Apodex 1.1 Mini 是 Apodex 推出的推理优先（reasoning-first）模型，面向复杂、长周期的研究与预测任务设计。它可直接处理文件、数据、代码与工具，产出可验证的结果。该模型拥有 262,144 token 的上下文窗口，最大输出同为 262,144 token，仅支持文本输入与文本输出，采用文本生成方式，参数量为 36B。目前通过 OpenRouter 提供免费调用，模型 ID 为 apodex/apodex-1.1-mini:free。
+- 要点：推理优先模型，专注复杂长周期研究与预测任务；可直接操作文件、数据、代码与工具，输出可验证结果；262,144 token 上下文窗口，最大输出 262,144 token；36B 参数，仅支持文本输入/输出；通过 OpenRouter 免费提供，模型 ID 为 apodex/apodex-1.1-mini:free
+- 注意：材料未披露训练细节、架构、许可证、具体性能评测及创作者背景；描述性语句多为平台简介，部分信息（如参数量）来自 Hugging Face 页面，未见官方技术报告。
 - 链接：[平台页](https://openrouter.ai/apodex/apodex-1.1-mini:free) ｜ <https://huggingface.co/apodex/Apodex-1.1-mini> ｜ <https://enterprisedna.co/directories/models/apodex-apodex-1-1-mini-free/> ｜ <https://modelgrep.com/models/apodex/apodex-1.1-mini:free>
 ### particle-ai/particle-1:free
 - 名称：Particle AI: Particle-1 (free)
-- 介绍：Particle-1 是 Particle AI 推出的首款模型，基于 DeepSeek V4.1 Flash 后训练，主打高 token 效率的智能体式编码。面向终端流程、代码库修改等软件工程场景，支持文本与图像输入、文本输出，上下文长度达 1,048,576 token，支持流式响应与可配置推理强度，也可用于对话和工具调用。
-- 要点：基于 DeepSeek V4.1 Flash 后训练，token 效率高、成本更低；支持 1,048,576 token 上下文窗口与流式响应；输入支持文本与图像，输出为文本；面向终端工作流、代码库修改等软件工程任务；提供免费版，可通过 ModelsLab、Puter、Cloudflare 等平台调用
-- 注意：材料未提供模型参数规模、训练细节及具体性能基准，仅含官方博客与平台元数据摘要。
-- 链接：[平台页](https://openrouter.ai/particle-ai/particle-1:free) ｜ <https://particle.ai/blog/introducing-particle-1> ｜ <https://modelslab.com/models/particle-ai/particle-ai-particle-1-free> ｜ <https://docs.particle.ai/models>
+- 介绍：Particle-1 是 Particle AI 推出的首个面向软件工程任务的模型，主打“更少 token、更低成本”的高效率智能体编码能力。它基于 DeepSeek V4.1 Flash 进行后训练，适用于终端工作流、代码库修改与数据处理等场景。该模型支持文本与图像输入、文本输出，上下文长度达 1,048,576 tokens，可通过 OpenRouter 统一 API 调用，并提供免费版本（particle-1:free）。
+- 要点：Particle AI 首个模型，专注以更少 token、更低成本解决软件工程任务；基于 DeepSeek V4.1 Flash 后训练，面向终端工作流、代码库修改等场景；上下文长度 1,048,576，支持文本与图像输入、文本输出；存在免费版本 particle-1:free，可经 OpenRouter 统一 API 访问
+- 注意：材料未提供基准测试分数、具体参数规模及详细定价信息；created 时间戳对应的日期未进一步核实。
+- 链接：[平台页](https://openrouter.ai/particle-ai/particle-1:free) ｜ <https://particle.ai/blog/introducing-particle-1> ｜ <https://rewind.ai/apps/particle-ai-particle-1/> ｜ <https://modelslab.com/models/particle-ai/particle-ai-particle-1-free>
 
 ## 🗑️ 移除——无变化
 - 无
