@@ -4,10 +4,10 @@
 ## 🆕 新增 (1)
 ### inclusionai/ling-3.2-flash:free
 - 名称：inclusionAI: Ling 3.2 Flash (free)
-- 介绍：Ling 3.2 Flash 是蚂蚁集团 inclusionAI（Ant Ling）推出的混合推理模型，支持文本与图像输入、纯文本输出，具备100万 token 上下文窗口，单次请求最多可处理200张图片。其思维推理过程可开关控制。该模型在 OpenRouter 上以免费版本提供，为 InclusionAI 最新上架的模型；据资料其参数规模约560B，上线前两周免费，之后定价为每百万 token 输入$0.30、输出$0.90。
-- 要点：混合推理模型，支持文本与图像输入、文本输出；100万 token 上下文，单请求最多200张图片；OpenRouter 免费版，InclusionAI 最新上架模型；约560B 多模态模型，前两周免费，之后 $0.30/$0.90 每百万 token
-- 注意：免费期确切结束时间、促销后最终定价、代码能力评分、独立基准成绩及开源权重计划在材料中标注为尚不明确；图片为单请求上限、560B 规模等细节来自第三方解读，平台元数据未直接给出。
-- 链接：[平台页](https://openrouter.ai/inclusionai/ling-3.2-flash:free) ｜ <https://openrouter.ai/inclusionai> ｜ <https://modelslab.com/models/inclusionai/inclusionai-ling-3.2-flash-free> ｜ <https://freakyjolly.com/ling-3-2-flash-guide/>
+- 介绍：Ling 3.2 Flash 是 inclusionAI 推出的混合推理模型，支持文本与图像输入，具备 100 万 token 上下文窗口，单次请求最多可处理 200 张图片，输出为文本。该模型在 OpenRouter 上以免费档提供（inclusionai/ling-3.2-flash:free），并可通过 UnoRouter 等平台以 OpenAI 兼容接口调用，无需信用卡即可使用。
+- 要点：混合推理模型，支持文本+图像输入、文本输出；1M token 上下文窗口，单请求最多 200 张图片；OpenRouter 免费档（:free），UnoRouter 提供免费层级、兼容 OpenAI SDK；2026 年 11 月 13 日在 OpenRouter 上架，为 inclusionAI 最新模型
+- 注意：材料未说明推理（thinking）功能的具体细节、模型参数规模（FreakyJolly 标题提及 560B 但正文摘要未确认）、具体性能基准与开源权重计划，以及免费促销结束后的定价。
+- 链接：[平台页](https://openrouter.ai/inclusionai/ling-3.2-flash:free) ｜ <https://openrouter.ai/inclusionai> ｜ <https://freakyjolly.com/ling-3-2-flash-guide/> ｜ <https://modelslab.com/models/inclusionai/inclusionai-ling-3.2-flash-free>
 
 ## 🗑️ 移除 (2)
 - [apodex/apodex-1.1-mini:free](https://openrouter.ai/apodex/apodex-1.1-mini:free)（最后出现：2026-11-13）
