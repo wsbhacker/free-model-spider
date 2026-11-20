@@ -109,7 +109,7 @@
       "last_check": {
         "date": "2026-11-20",
         "status": "ok",
-        "detail": "新增 2 个"
+        "detail": "无新模型"
       }
     },
     {
@@ -164,7 +164,7 @@
       "last_check": {
         "date": "2026-11-20",
         "status": "ok",
-        "detail": "新增 2 个"
+        "detail": "无新模型"
       }
     },
     {
@@ -228,8 +228,8 @@
       ],
       "last_check": {
         "date": "2026-11-20",
-        "status": "ok",
-        "detail": "新增 1 个"
+        "status": "transient",
+        "detail": "Dify 流耗尽未见 message_end"
       }
     },
     {
