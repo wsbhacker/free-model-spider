@@ -4,9 +4,28 @@
   "display_name": "OpenRouter",
   "date": "2026-11-20",
   "baseline_date": "2026-11-19",
-  "total": 15,
+  "total": 14,
   "added": [],
   "removed": [
+    {
+      "source": "openrouter",
+      "id": "cohere/north-mini-code:free",
+      "name": "Cohere: North Mini Code (free)",
+      "context_length": 256000,
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": 1781723748,
+      "description": "North Mini Code is Cohere's first agentic coding model and the debut of its North family. A sparse mixture-of-experts model with 30B total parameters and 3B active, it is optimized...",
+      "links": {
+        "platform_page": "https://openrouter.ai/cohere/north-mini-code:free",
+        "hugging_face": "CohereLabs/North-Mini-Code-1.0"
+      },
+      "page_url": "https://openrouter.ai/cohere/north-mini-code:free"
+    },
     {
       "source": "openrouter",
       "id": "thinkingmachines/inkling-2-small:free",
@@ -47,25 +66,6 @@
         "hugging_face": "baidu/ERNIE-5.5-Flash-Preview"
       },
       "page_url": "https://openrouter.ai/baidu/ernie-5.5-flash-preview:free"
-    },
-    {
-      "source": "openrouter",
-      "id": "cohere/north-mini-code:free",
-      "name": "Cohere: North Mini Code (free)",
-      "context_length": 256000,
-      "input_modalities": [
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "created": 1781723748,
-      "description": "North Mini Code is Cohere's first agentic coding model and the debut of its North family. A sparse mixture-of-experts model with 30B total parameters and 3B active, it is optimized...",
-      "links": {
-        "platform_page": "https://openrouter.ai/cohere/north-mini-code:free",
-        "hugging_face": "CohereLabs/North-Mini-Code-1.0"
-      },
-      "page_url": "https://openrouter.ai/cohere/north-mini-code:free"
     },
     {
       "source": "openrouter",
