@@ -4,29 +4,9 @@
   "display_name": "OpenRouter",
   "date": "2026-11-21",
   "baseline_date": "2026-11-20",
-  "total": 14,
+  "total": 13,
   "added": [],
-  "removed": [],
-  "unchanged": [
-    {
-      "source": "openrouter",
-      "id": "baidu/ernie-5.5-flash-preview:free",
-      "name": "Baidu: ERNIE-5.5-Flash-Preview (free)",
-      "context_length": 1024000,
-      "input_modalities": [
-        "text"
-      ],
-      "output_modalities": [
-        "text"
-      ],
-      "created": 1794333533,
-      "description": "ERNIE 5.5 Flash Preview is the latest foundation model in the ERNIE family, with comprehensive improvements in coding, agentic capabilities, knowledge work, and deep research. It has 280 billion total...",
-      "links": {
-        "platform_page": "https://openrouter.ai/baidu/ernie-5.5-flash-preview:free",
-        "hugging_face": "baidu/ERNIE-5.5-Flash-Preview"
-      },
-      "page_url": "https://openrouter.ai/baidu/ernie-5.5-flash-preview:free"
-    },
+  "removed": [
     {
       "source": "openrouter",
       "id": "dots-studio/dots-3-note-preview:free",
@@ -46,6 +26,27 @@
         "hugging_face": "dots-studio/dots3-note-prev"
       },
       "page_url": "https://openrouter.ai/dots-studio/dots-3-note-preview:free"
+    }
+  ],
+  "unchanged": [
+    {
+      "source": "openrouter",
+      "id": "baidu/ernie-5.5-flash-preview:free",
+      "name": "Baidu: ERNIE-5.5-Flash-Preview (free)",
+      "context_length": 1024000,
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": 1794333533,
+      "description": "ERNIE 5.5 Flash Preview is the latest foundation model in the ERNIE family, with comprehensive improvements in coding, agentic capabilities, knowledge work, and deep research. It has 280 billion total...",
+      "links": {
+        "platform_page": "https://openrouter.ai/baidu/ernie-5.5-flash-preview:free",
+        "hugging_face": "baidu/ERNIE-5.5-Flash-Preview"
+      },
+      "page_url": "https://openrouter.ai/baidu/ernie-5.5-flash-preview:free"
     },
     {
       "source": "openrouter",

@@ -1,17 +1,16 @@
 # OpenRouter 免费模型清单 2026-11-21
-> 免费 14 个（2026-11-20：+0 / -0）
+> 免费 13 个（2026-11-20：+0 / -1）
 
 ## 🆕 新增——无变化
 - 无
 
-## 🗑️ 移除——无变化
-- 无
+## 🗑️ 移除 (1)
+- [dots-studio/dots-3-note-preview:free](https://openrouter.ai/dots-studio/dots-3-note-preview:free)（最后出现：2026-11-20）
 
-## 📋 无变化 (14)
+## 📋 无变化 (13)
 | 模型 | 名称 | 上下文 | 模态 |
 |---|---|---|---|
 | [baidu/ernie-5.5-flash-preview:free](https://openrouter.ai/baidu/ernie-5.5-flash-preview:free) | Baidu: ERNIE-5.5-Flash-Preview (free) | 1,024,000 | text→text |
-| [dots-studio/dots-3-note-preview:free](https://openrouter.ai/dots-studio/dots-3-note-preview:free) | Dots Studio: Dots3-Note Preview (free) | 512,000 | text、image→text |
 | [google/gemma-4-26b-a4b-it:free](https://openrouter.ai/google/gemma-4-26b-a4b-it:free) | Google: Gemma 4 26B A4B  (free) | 262,144 | image、text、video→text |
 | [google/gemma-4-31b-it:free](https://openrouter.ai/google/gemma-4-31b-it:free) | Google: Gemma 4 31B (free) | 262,144 | image、text、video→text |
 | [google/lyria-3-clip-preview](https://openrouter.ai/google/lyria-3-clip-preview) | Google: Lyria 3 Clip Preview | 1,048,576 | text、image→text、audio |
