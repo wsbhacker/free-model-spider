@@ -74,28 +74,29 @@ Markdown 日报，由 GitHub Actions 每日北京时间 08:30 自动运行并提
 
 | 厂商 | 模型 | 发布日 | 距今（天） | 证据 |
 |---|---|---|---|---|
-| OpenAI | GPT-6.1 Terra | 2026-10-26 | 25 | [公告](https://openai.com/index/introducing-gpt-6-1-terra) |
-| OpenAI | GPT-6.1 Sol | 2026-09-29 | 52 | [公告](https://openai.com/index/introducing-gpt-6-1-sol) |
-| OpenAI | GPT-6 Luna | 2026-09-22 | 59 | [公告](https://openai.com/index/introducing-gpt-6-sol-and-luna) |
-| OpenAI | GPT-6 Astra | 2026-09-03 | 78 | [公告](https://openai.com/index/gpt-6-astra) |
-| Anthropic | Claude Fable 5.2 | 2026-11-09 | 11 | [公告](https://www.anthropic.com/news/claude-fable-and-mythos-5-2) |
-| Anthropic | Claude Mythos 5.2 | 2026-11-09 | 11 | [公告](https://www.anthropic.com/news/claude-fable-and-mythos-5-2) |
-| Anthropic | Claude Haiku 5.5 | 2026-10-07 | 44 | [公告](https://www.anthropic.com/claude-haiku-5-5) |
-| Anthropic | Claude Sonnet 5.5 | 2026-09-28 | 53 | [公告](https://www.anthropic.com/claude-sonnet-5-5) |
-| Anthropic | Claude Opus 5.5 | 2026-09-22 | 59 | [公告](https://www.anthropic.com/claude-opus-5-5) |
-| Google DeepMind | Gemini 4 Neon | 2026-11-18 | 2 | [公告](https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-gemini-4-neon) |
-| Google DeepMind | Gemini 4 Hydrogen | 2026-11-12 | 8 | [公告](https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-gemini-4-hydrogen) |
-| Google DeepMind | Gemini 4 Carbon | 2026-10-28 | 23 | [公告](https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-gemini-4-carbon) |
-| DeepSeek | DeepSeek-V4.1-Flash-1017 | 2026-10-17 | 34 | [公告](https://api-docs.deepseek.com/zh-cn/news/news261017) |
-| DeepSeek | DeepSeek-V4-Pro-0813 | 2026-08-13 | 99 | [公告](https://api-docs.deepseek.com/zh-cn/news/news260813) |
-| 阿里 Qwen | Qwen4-Max | 2026-11-16 | 4 | [公告](https://qwen.ai/blog?id=qwen4-max) |
-| 阿里 Qwen | Qwen3.8-Omni-Flash | 2026-09-18 | 63 | [公告](https://qwen.ai/blog?id=qwen3.8-omni-flash) |
-| 月之暗面 | Kimi K3.1 Pro | 2026-10-24 | 27 | [公告](https://www.kimi.com/news/kimi-k3-1-pro) |
-| 月之暗面 | Kimi K3.1 Pro Highspeed | 2026-10-24 | 27 | [公告](https://www.kimi.com/news/kimi-k3-1-pro) |
-| 智谱 AI | GLM-5.3-Flash | 2026-08-26 | 86 | [公告](https://docs.bigmodel.cn/cn/update/new-releases) |
-| 智谱 AI | GLM-5.3 | 2026-08-19 | 93 | [公告](https://docs.bigmodel.cn/cn/update/new-releases) |
-| MiniMax | MiniMax M3.1 Flash | 2026-10-19 | 32 | [公告](https://www.minimax.io/blog/minimax-m31f) |
-| MiniMax | MiniMax M3 | 2026-06-01 | 172 | [公告](https://www.minimax.io/blog/minimax-m3) |
+| OpenAI | GPT-6.2 Astra | 2026-11-17 | 5 | [公告](https://openai.com/index/introducing-gpt-6-2-astra-sol) |
+| OpenAI | GPT-6.2 Sol | 2026-11-17 | 5 | [公告](https://openai.com/index/introducing-gpt-6-2-astra-sol) |
+| OpenAI | GPT-6 Cyber | 2026-11-05 | 17 | [公告](https://openai.com/index/introducing-gpt-6-cyber) |
+| OpenAI | GPT-6.1 Terra | 2026-10-26 | 27 | [公告](https://openai.com/index/introducing-gpt-6-1-terra) |
+| OpenAI | GPT-6 Luna | 2026-09-22 | 61 | [公告](https://openai.com/index/introducing-gpt-6-sol-and-luna) |
+| Anthropic | Claude Fable 5.2 | 2026-11-09 | 13 | [公告](https://www.anthropic.com/news/claude-fable-and-mythos-5-2) |
+| Anthropic | Claude Mythos 5.2 | 2026-11-09 | 13 | [公告](https://www.anthropic.com/news/claude-fable-and-mythos-5-2) |
+| Anthropic | Claude Haiku 5.5 | 2026-10-07 | 46 | [公告](https://www.anthropic.com/claude-haiku-5-5) |
+| Anthropic | Claude Sonnet 5.5 | 2026-09-28 | 55 | [公告](https://www.anthropic.com/claude-sonnet-5-5) |
+| Anthropic | Claude Opus 5.5 | 2026-09-22 | 61 | [公告](https://www.anthropic.com/claude-opus-5-5) |
+| Google DeepMind | Gemini 4 Neon | 2026-11-18 | 4 | [公告](https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-gemini-4-neon) |
+| Google DeepMind | Gemini 4 Hydrogen | 2026-11-12 | 10 | [公告](https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-gemini-4-hydrogen) |
+| Google DeepMind | Gemini 4 Carbon | 2026-10-28 | 25 | [公告](https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-gemini-4-carbon) |
+| DeepSeek | DeepSeek-V4.1-Flash-1017 | 2026-10-17 | 36 | [公告](https://api-docs.deepseek.com/zh-cn/news/news261017) |
+| DeepSeek | DeepSeek-V4-Pro-0813 | 2026-08-13 | 101 | [公告](https://api-docs.deepseek.com/zh-cn/news/news260813) |
+| 阿里 Qwen | Qwen4-Max | 2026-11-16 | 6 | [公告](https://qwen.ai/blog?id=qwen4-max) |
+| 阿里 Qwen | Qwen3.8-Omni-Flash | 2026-09-18 | 65 | [公告](https://qwen.ai/blog?id=qwen3.8-omni-flash) |
+| 月之暗面 | Kimi K3.1 Pro | 2026-10-24 | 29 | [公告](https://www.kimi.com/news/kimi-k3-1-pro) |
+| 月之暗面 | Kimi K3.1 Pro Highspeed | 2026-10-24 | 29 | [公告](https://www.kimi.com/news/kimi-k3-1-pro) |
+| 智谱 AI | GLM-5.3-Flash | 2026-08-26 | 88 | [公告](https://docs.bigmodel.cn/cn/update/new-releases) |
+| 智谱 AI | GLM-5.3 | 2026-08-19 | 95 | [公告](https://docs.bigmodel.cn/cn/update/new-releases) |
+| MiniMax | MiniMax M3.1 Flash | 2026-10-19 | 34 | [公告](https://www.minimax.io/blog/minimax-m31f) |
+| MiniMax | MiniMax M3 | 2026-06-01 | 174 | [公告](https://www.minimax.io/blog/minimax-m3) |
 
-> 更新于 2026-11-20
+> 更新于 2026-11-22
 <!-- fms-vendors:end -->
