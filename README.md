@@ -14,41 +14,41 @@ Markdown 日报，由 GitHub Actions 每日北京时间 08:30 自动运行并提
 
 | 日期 | 新增 | 移除 | 日报 |
 |---|---|---|---|
-| 2026-11-06 | +0 | -0 | [链接](reports/opencode-2026-11-06-免费模型清单.md) |
-| 2026-11-05 | +1 | -0 | [链接](reports/opencode-2026-11-05-免费模型清单.md) |
-| 2026-11-04 | +0 | -0 | [链接](reports/opencode-2026-11-04-免费模型清单.md) |
-| 2026-11-03 | +1 | -0 | [链接](reports/opencode-2026-11-03-免费模型清单.md) |
-| 2026-11-02 | +0 | -0 | [链接](reports/opencode-2026-11-02-免费模型清单.md) |
-| 2026-11-01 | +0 | -0 | [链接](reports/opencode-2026-11-01-免费模型清单.md) |
-| 2026-10-31 | +0 | -0 | [链接](reports/opencode-2026-10-31-免费模型清单.md) |
-| 2026-10-30 | +0 | -0 | [链接](reports/opencode-2026-10-30-免费模型清单.md) |
-| 2026-10-29 | +0 | -0 | [链接](reports/opencode-2026-10-29-免费模型清单.md) |
-| 2026-10-28 | +0 | -0 | [链接](reports/opencode-2026-10-28-免费模型清单.md) |
-| 2026-10-27 | +0 | -0 | [链接](reports/opencode-2026-10-27-免费模型清单.md) |
-| 2026-10-26 | +0 | -1 | [链接](reports/opencode-2026-10-26-免费模型清单.md) |
-| 2026-10-25 | +0 | -0 | [链接](reports/opencode-2026-10-25-免费模型清单.md) |
-| 2026-10-24 | +0 | -2 | [链接](reports/opencode-2026-10-24-免费模型清单.md) |
-| 2026-10-23 | +0 | -1 | [链接](reports/opencode-2026-10-23-免费模型清单.md) |
+| 2026-11-23 | +0 | -1 | [链接](reports/opencode-2026-11-23-免费模型清单.md) |
+| 2026-11-22 | +1 | -1 | [链接](reports/opencode-2026-11-22-免费模型清单.md) |
+| 2026-11-21 | +0 | -0 | [链接](reports/opencode-2026-11-21-免费模型清单.md) |
+| 2026-11-20 | +0 | -0 | [链接](reports/opencode-2026-11-20-免费模型清单.md) |
+| 2026-11-19 | +0 | -1 | [链接](reports/opencode-2026-11-19-免费模型清单.md) |
+| 2026-11-18 | +0 | -2 | [链接](reports/opencode-2026-11-18-免费模型清单.md) |
+| 2026-11-17 | +1 | -0 | [链接](reports/opencode-2026-11-17-免费模型清单.md) |
+| 2026-11-16 | +0 | -0 | [链接](reports/opencode-2026-11-16-免费模型清单.md) |
+| 2026-11-15 | +0 | -0 | [链接](reports/opencode-2026-11-15-免费模型清单.md) |
+| 2026-11-14 | +0 | -0 | [链接](reports/opencode-2026-11-14-免费模型清单.md) |
+| 2026-11-13 | +0 | -0 | [链接](reports/opencode-2026-11-13-免费模型清单.md) |
+| 2026-11-12 | +0 | -0 | [链接](reports/opencode-2026-11-12-免费模型清单.md) |
+| 2026-11-11 | +0 | -0 | [链接](reports/opencode-2026-11-11-免费模型清单.md) |
+| 2026-11-10 | +2 | -1 | [链接](reports/opencode-2026-11-10-免费模型清单.md) |
+| 2026-11-09 | +0 | -0 | [链接](reports/opencode-2026-11-09-免费模型清单.md) |
 
 ### OpenRouter
 
 | 日期 | 新增 | 移除 | 日报 |
 |---|---|---|---|
-| 2026-11-06 | +0 | -0 | [链接](reports/openrouter-2026-11-06-免费模型清单.md) |
-| 2026-11-05 | +0 | -2 | [链接](reports/openrouter-2026-11-05-免费模型清单.md) |
-| 2026-11-04 | +1 | -0 | [链接](reports/openrouter-2026-11-04-免费模型清单.md) |
-| 2026-11-03 | +0 | -0 | [链接](reports/openrouter-2026-11-03-免费模型清单.md) |
-| 2026-11-02 | +0 | -0 | [链接](reports/openrouter-2026-11-02-免费模型清单.md) |
-| 2026-11-01 | +0 | -2 | [链接](reports/openrouter-2026-11-01-免费模型清单.md) |
-| 2026-10-31 | +0 | -0 | [链接](reports/openrouter-2026-10-31-免费模型清单.md) |
-| 2026-10-30 | +0 | -0 | [链接](reports/openrouter-2026-10-30-免费模型清单.md) |
-| 2026-10-29 | +0 | -0 | [链接](reports/openrouter-2026-10-29-免费模型清单.md) |
-| 2026-10-28 | +0 | -1 | [链接](reports/openrouter-2026-10-28-免费模型清单.md) |
-| 2026-10-27 | +0 | -0 | [链接](reports/openrouter-2026-10-27-免费模型清单.md) |
-| 2026-10-26 | +0 | -0 | [链接](reports/openrouter-2026-10-26-免费模型清单.md) |
-| 2026-10-25 | +0 | -0 | [链接](reports/openrouter-2026-10-25-免费模型清单.md) |
-| 2026-10-24 | +0 | -0 | [链接](reports/openrouter-2026-10-24-免费模型清单.md) |
-| 2026-10-23 | +0 | -1 | [链接](reports/openrouter-2026-10-23-免费模型清单.md) |
+| 2026-11-23 | +0 | -0 | [链接](reports/openrouter-2026-11-23-免费模型清单.md) |
+| 2026-11-22 | +0 | -0 | [链接](reports/openrouter-2026-11-22-免费模型清单.md) |
+| 2026-11-21 | +0 | -1 | [链接](reports/openrouter-2026-11-21-免费模型清单.md) |
+| 2026-11-20 | +0 | -2 | [链接](reports/openrouter-2026-11-20-免费模型清单.md) |
+| 2026-11-19 | +0 | -0 | [链接](reports/openrouter-2026-11-19-免费模型清单.md) |
+| 2026-11-18 | +0 | -0 | [链接](reports/openrouter-2026-11-18-免费模型清单.md) |
+| 2026-11-17 | +0 | -0 | [链接](reports/openrouter-2026-11-17-免费模型清单.md) |
+| 2026-11-16 | +0 | -0 | [链接](reports/openrouter-2026-11-16-免费模型清单.md) |
+| 2026-11-15 | +0 | -0 | [链接](reports/openrouter-2026-11-15-免费模型清单.md) |
+| 2026-11-14 | +1 | -2 | [链接](reports/openrouter-2026-11-14-免费模型清单.md) |
+| 2026-11-13 | +2 | -0 | [链接](reports/openrouter-2026-11-13-免费模型清单.md) |
+| 2026-11-12 | +1 | -0 | [链接](reports/openrouter-2026-11-12-免费模型清单.md) |
+| 2026-11-11 | +0 | -1 | [链接](reports/openrouter-2026-11-11-免费模型清单.md) |
+| 2026-11-10 | +1 | -1 | [链接](reports/openrouter-2026-11-10-免费模型清单.md) |
+| 2026-11-09 | +0 | -0 | [链接](reports/openrouter-2026-11-09-免费模型清单.md) |
 <!-- fms-index:end -->
 
 ## 使用
@@ -74,27 +74,29 @@ Markdown 日报，由 GitHub Actions 每日北京时间 08:30 自动运行并提
 
 | 厂商 | 模型 | 发布日 | 距今（天） | 证据 |
 |---|---|---|---|---|
-| OpenAI | GPT-6.1 Terra | 2026-10-26 | 11 | [公告](https://openai.com/index/introducing-gpt-6-1-terra) |
-| OpenAI | GPT-6.1 Sol | 2026-09-29 | 38 | [公告](https://openai.com/index/introducing-gpt-6-1-sol) |
-| OpenAI | GPT-6 Luna | 2026-09-22 | 45 | [公告](https://openai.com/index/introducing-gpt-6-sol-and-luna) |
-| OpenAI | GPT-6 Astra | 2026-09-03 | 64 | [公告](https://openai.com/index/gpt-6-astra) |
-| Anthropic | Claude Haiku 5.5 | 2026-10-07 | 30 | [公告](https://www.anthropic.com/claude-haiku-5-5) |
-| Anthropic | Claude Sonnet 5.5 | 2026-09-28 | 39 | [公告](https://www.anthropic.com/claude-sonnet-5-5) |
-| Anthropic | Claude Opus 5.5 | 2026-09-22 | 45 | [公告](https://www.anthropic.com/claude-opus-5-5) |
-| Anthropic | Claude Fable 5.1 | 2026-09-01 | 66 | [公告](https://www.anthropic.com/claude-fable-and-mythos-5-1) |
-| Google DeepMind | Gemini 4 Carbon | 2026-10-28 | 9 | [公告](https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-gemini-4-carbon) |
-| Google DeepMind | Gemini 4 Argon | 2026-09-30 | 37 | [公告](https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-4-argon) |
-| Google DeepMind | Gemini 3.8 Flash | 2026-09-02 | 65 | [公告](https://blog.google/innovation-and-ai/models-and-research/gemini-models/3-8-flash-and-3-8-flash-cyber) |
-| DeepSeek | DeepSeek-V4.1-Flash-1017 | 2026-10-17 | 20 | [公告](https://api-docs.deepseek.com/zh-cn/news/news261017) |
-| DeepSeek | DeepSeek-V4-Pro-0813 | 2026-08-13 | 85 | [公告](https://api-docs.deepseek.com/zh-cn/news/news260813) |
-| 阿里 Qwen | Qwen3.8-Omni-Flash | 2026-09-18 | 49 | [公告](https://qwen.ai/blog?id=qwen3.8-omni-flash) |
-| 阿里 Qwen | Qwen3.8-Max | 2026-08-02 | 96 | [公告](https://qwen.ai/blog?id=qwen3.8) |
-| 月之暗面 | Kimi K3.1 Pro | 2026-10-24 | 13 | [公告](https://www.kimi.com/news/kimi-k3-1-pro) |
-| 月之暗面 | Kimi K3.1 Pro Highspeed | 2026-10-24 | 13 | [公告](https://www.kimi.com/news/kimi-k3-1-pro) |
-| 智谱 AI | GLM-5.3-Flash | 2026-08-26 | 72 | [公告](https://docs.bigmodel.cn/cn/update/new-releases) |
-| 智谱 AI | GLM-5.3 | 2026-08-19 | 79 | [公告](https://docs.bigmodel.cn/cn/update/new-releases) |
-| MiniMax | MiniMax M3.1 Flash | 2026-10-19 | 18 | [公告](https://www.minimax.io/blog/minimax-m31f) |
-| MiniMax | MiniMax M3 | 2026-06-01 | 158 | [公告](https://www.minimax.io/blog/minimax-m3) |
+| OpenAI | GPT-6.2 Astra | 2026-11-17 | 5 | [公告](https://openai.com/index/introducing-gpt-6-2-astra-sol) |
+| OpenAI | GPT-6.2 Sol | 2026-11-17 | 5 | [公告](https://openai.com/index/introducing-gpt-6-2-astra-sol) |
+| OpenAI | GPT-6 Cyber | 2026-11-05 | 17 | [公告](https://openai.com/index/introducing-gpt-6-cyber) |
+| OpenAI | GPT-6.1 Terra | 2026-10-26 | 27 | [公告](https://openai.com/index/introducing-gpt-6-1-terra) |
+| OpenAI | GPT-6 Luna | 2026-09-22 | 61 | [公告](https://openai.com/index/introducing-gpt-6-sol-and-luna) |
+| Anthropic | Claude Fable 5.2 | 2026-11-09 | 13 | [公告](https://www.anthropic.com/news/claude-fable-and-mythos-5-2) |
+| Anthropic | Claude Mythos 5.2 | 2026-11-09 | 13 | [公告](https://www.anthropic.com/news/claude-fable-and-mythos-5-2) |
+| Anthropic | Claude Haiku 5.5 | 2026-10-07 | 46 | [公告](https://www.anthropic.com/claude-haiku-5-5) |
+| Anthropic | Claude Sonnet 5.5 | 2026-09-28 | 55 | [公告](https://www.anthropic.com/claude-sonnet-5-5) |
+| Anthropic | Claude Opus 5.5 | 2026-09-22 | 61 | [公告](https://www.anthropic.com/claude-opus-5-5) |
+| Google DeepMind | Gemini 4 Neon | 2026-11-18 | 4 | [公告](https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-gemini-4-neon) |
+| Google DeepMind | Gemini 4 Hydrogen | 2026-11-12 | 10 | [公告](https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-gemini-4-hydrogen) |
+| Google DeepMind | Gemini 4 Carbon | 2026-10-28 | 25 | [公告](https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-gemini-4-carbon) |
+| DeepSeek | DeepSeek-V4.1-Flash-1017 | 2026-10-17 | 36 | [公告](https://api-docs.deepseek.com/zh-cn/news/news261017) |
+| DeepSeek | DeepSeek-V4-Pro-0813 | 2026-08-13 | 101 | [公告](https://api-docs.deepseek.com/zh-cn/news/news260813) |
+| 阿里 Qwen | Qwen4-Max | 2026-11-16 | 6 | [公告](https://qwen.ai/blog?id=qwen4-max) |
+| 阿里 Qwen | Qwen3.8-Omni-Flash | 2026-09-18 | 65 | [公告](https://qwen.ai/blog?id=qwen3.8-omni-flash) |
+| 月之暗面 | Kimi K3.1 Pro | 2026-10-24 | 29 | [公告](https://www.kimi.com/news/kimi-k3-1-pro) |
+| 月之暗面 | Kimi K3.1 Pro Highspeed | 2026-10-24 | 29 | [公告](https://www.kimi.com/news/kimi-k3-1-pro) |
+| 智谱 AI | GLM-5.3-Flash | 2026-08-26 | 88 | [公告](https://docs.bigmodel.cn/cn/update/new-releases) |
+| 智谱 AI | GLM-5.3 | 2026-08-19 | 95 | [公告](https://docs.bigmodel.cn/cn/update/new-releases) |
+| MiniMax | MiniMax M3.1 Flash | 2026-10-19 | 34 | [公告](https://www.minimax.io/blog/minimax-m31f) |
+| MiniMax | MiniMax M3 | 2026-06-01 | 174 | [公告](https://www.minimax.io/blog/minimax-m3) |
 
-> 更新于 2026-11-06
+> 更新于 2026-11-22
 <!-- fms-vendors:end -->
