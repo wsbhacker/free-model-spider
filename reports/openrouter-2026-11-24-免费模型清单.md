@@ -4,10 +4,10 @@
 ## 🆕 新增 (1)
 ### dots-studio/dots-3-note-preview:free
 - 名称：Dots Studio: Dots3-Note Preview (free)
-- 介绍：Dots3-Note Preview 是 Dots Studio 推出的开源权重混合专家（MoE）模型，总参数 280B、激活参数 16B，是 Dots 3 系列中最轻量的版本。支持文本与图像输入、文本输出，上下文长度达 512000。该模型通过 OpenRouter 等渠道免费使用（价格 $0.00/1M tokens），在编码基准测试中有相关表现数据。官方称其除具备出色的问题求解能力外，还展现出强烈的研究型思维模式。
-- 要点：开源权重 MoE 架构：280B 总参数、16B 激活参数，为 Dots 3 系列最轻量模型；支持文本与图像输入、文本输出，上下文长度 512000；完全免费使用，价格 $0.00/1M tokens，可经 OpenRouter 访问并获完整 API 支持；具备研究导向思维：可与环境交互观察、主动形成并验证假设、更新记忆用于后续决策
-- 注意：材料未提供模型发布时间之外的具体基准分数、训练细节与完整架构参数；描述字段在元数据中被截断，部分信息依赖搜索结果摘要。
-- 链接：[平台页](https://openrouter.ai/dots-studio/dots-3-note-preview:free) ｜ <https://kilo.ai/models/dots-studio-dots-3-note-preview-free> ｜ <https://rewind.ai/apps/dots-studio-dots-3-note-preview-free/> ｜ <https://studio.dots.ai/dots/dots3-en.html>
+- 介绍：Dots3-Note Preview 是 Dots Studio 推出的开源权重混合专家（MoE）模型，总参数 280B，激活参数 16B，是 Dots 3 系列中最轻量的版本。该模型支持文本与图像输入、文本输出，上下文长度达 512000 tokens。官方称其不仅具备出色的解题能力，还展现出强烈的研究型思维：能通过与环境交互进行观察、主动形成并验证假设、更新记忆并在后续决策中复用。目前该模型可通过 OpenRouter 等平台免费使用。
+- 要点：开源权重 MoE 架构：280B 总参数，16B 激活参数，Dots 3 系列最轻量模型；支持文本与图像输入，512000 tokens 超长上下文；具备研究型思维：观察环境、形成并验证假设、更新并复用记忆；免费使用，可通过 OpenRouter、Rewind.ai 等平台访问
+- 注意：材料未提供模型的训练数据、具体基准测试得分、发布日期及许可证细节；描述中的创建时间为平台时间戳，未经核实。
+- 链接：[平台页](https://openrouter.ai/dots-studio/dots-3-note-preview:free) ｜ <https://kilo.ai/models/dots-studio-dots-3-note-preview-free> ｜ <https://rewind.ai/apps/dots-studio-dots-3-note-preview-free/> ｜ <https://freellmrouter.com/models/dots-studio/dots-3-note-preview:free>
 
 ## 🗑️ 移除——无变化
 - 无
