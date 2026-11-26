@@ -4,8 +4,27 @@
   "display_name": "OpenCode",
   "date": "2026-11-26",
   "baseline_date": "2026-11-25",
-  "total": 11,
-  "added": [],
+  "total": 12,
+  "added": [
+    {
+      "source": "opencode",
+      "id": "seaglass-alpha-free",
+      "name": "Seaglass Alpha Free",
+      "context_length": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "created": null,
+      "description": "",
+      "links": {
+        "platform_page": "https://opencode.ai/v2/docs/console/models/"
+      },
+      "page_url": "https://opencode.ai/v2/docs/console/models/"
+    }
+  ],
   "removed": [],
   "unchanged": [
     {
